@@ -4,6 +4,10 @@ import 'package:timezone/timezone.dart' as tz;
 /// trustworthy first. Persisted alongside every scheduled reminder so the
 /// schedule can explain *why* it chose the zone it did.
 enum ZoneSource {
+  /// A zone the user chose explicitly (a trip's home zone). Not a cascade
+  /// tier — an explicit choice outranks any inferred signal.
+  userChosen,
+
   /// A live location signal (in this demo, a simulated "I'm here now" zone).
   liveLocation,
 

@@ -138,16 +138,18 @@ class TimezoneResolver {
         localeCountry: localeCountry,
       );
 
-  /// For home days: honor the user's chosen zone if it is valid, otherwise fall
-  /// back to the device zone (location disabled).
+  /// For home days: honor the user's chosen zone if it is valid — reported as
+  /// [ZoneSource.userChosen] at high confidence, since an explicit choice
+  /// outranks any inferred signal. Only an invalid id falls into the cascade
+  /// (with the location tier disabled).
   Future<ResolvedZone> resolveHomeZone(String preferredIana) async {
     final loc = _tryLocation(preferredIana);
     if (loc != null) {
       return ResolvedZone(
         iana: preferredIana,
         location: loc,
-        source: ZoneSource.deviceTimezone,
-        confidence: ZoneConfidence.medium,
+        source: ZoneSource.userChosen,
+        confidence: ZoneConfidence.high,
       );
     }
     return resolveCascade(allowLocation: false);
