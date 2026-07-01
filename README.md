@@ -2,7 +2,7 @@
 
 ![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter&logoColor=white)
 ![Platforms](https://img.shields.io/badge/platforms-Android%20%7C%20iOS-555)
-![Tests](https://img.shields.io/badge/tests-50%20passing-3DA639)
+![Tests](https://img.shields.io/badge/tests-51%20passing-3DA639)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
 A reference implementation of **timezone-aware local notification scheduling** for
@@ -387,7 +387,10 @@ no separate `pod install` step.
    reminders.
 2. **Inspect the schedule** (Upcoming tab): every scheduled reminder with its resolved
    fire time, IANA zone, resolution **source**, and **confidence** — this screen is the
-   window into what the engine decided (it mirrors the persisted registry).
+   window into what the engine decided (it mirrors the persisted registry). A reminder
+   whose instant has passed stays listed, dimmed and badged **fired** — display state
+   derived at render time (the app has no delivery receipt, and the registry is never
+   mutated for the UI) — until the next reconcile prunes it.
 3. **Exercise the hard paths** (Simulate tab):
    - *Simulate "I'm in zone X today"* sets a high-confidence live signal; watch only
      today's reminder switch zones on the Upcoming screen.
@@ -446,7 +449,7 @@ Ordered from the most approachable to the most involved.
 flutter test
 ```
 
-The 50 tests run with no radio, no network, and no real clock — fakes are injected
+The 51 tests run with no radio, no network, and no real clock — fakes are injected
 through the ports and time is controlled with `package:clock` / `fakeAsync`.
 
 - [`resolver_cascade_test.dart`](test/resolver_cascade_test.dart) — each tier wins under
@@ -467,6 +470,9 @@ through the ports and time is controlled with `package:clock` / `fakeAsync`.
   start, periodic, DST-shift detection.
 - [`scheduler_integration_test.dart`](test/scheduler_integration_test.dart) — the
   orchestrator end to end over fakes, including OS-cleared full resync.
+- [`fired_reminders_provider_test.dart`](test/fired_reminders_provider_test.dart) — the
+  Upcoming screen's "fired" badge state flips exactly at each fire instant, driven by a
+  single re-armed timer rather than polling.
 
 ## Adapting it for your own app
 

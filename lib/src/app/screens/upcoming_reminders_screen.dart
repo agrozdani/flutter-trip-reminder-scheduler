@@ -9,6 +9,11 @@ import '../providers.dart';
 /// Mirrors the persisted registry: every scheduled reminder with its resolved
 /// fire time, IANA zone, resolution source, and confidence. This is the window
 /// into what the engine actually decided.
+///
+/// A reminder whose instant has passed stays listed — dimmed and badged
+/// "fired" — until the next reconcile prunes it from the registry. The badge
+/// is derived at render time (see [firedReminderIdsProvider]); the registry
+/// itself is never mutated for display.
 class UpcomingRemindersScreen extends ConsumerWidget {
   const UpcomingRemindersScreen({super.key});
 
@@ -93,31 +98,42 @@ class _Header extends StatelessWidget {
   }
 }
 
-class _ReminderTile extends StatelessWidget {
+class _ReminderTile extends ConsumerWidget {
   const _ReminderTile(this.reminder);
 
   final ScheduledReminder reminder;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // "Fired" is derived display state — the instant has passed; whether the
+    // OS actually delivered it is unknowable, so the badge says "fired", not
+    // "delivered". Selecting just this id means only the card crossing the
+    // boundary rebuilds when the provider's timer fires.
+    final fired = ref.watch(
+      firedReminderIdsProvider.select((ids) => ids.contains(reminder.id)),
+    );
     final local = tz.TZDateTime.from(reminder.fireInstantUtc, _location(reminder.iana));
-    return ListTile(
-      leading: CircleAvatar(child: Text('${reminder.dayIndex}')),
-      title: Text('${_fmtLocal(local)}  ·  ${reminder.iana}'),
-      subtitle: Padding(
-        padding: const EdgeInsets.only(top: 4),
-        child: Wrap(
-          spacing: 6,
-          runSpacing: 4,
-          children: [
-            _Chip(reminder.source.name, _sourceColor(reminder.source)),
-            _Chip(reminder.confidence.name, _confidenceColor(reminder.confidence)),
-            _Chip('trip ${reminder.tripId}', Colors.grey),
-            _Chip('${_fmtUtc(reminder.fireInstantUtc)}Z', Colors.blueGrey),
-          ],
+    return Opacity(
+      opacity: fired ? 0.55 : 1.0,
+      child: ListTile(
+        leading: CircleAvatar(child: Text('${reminder.dayIndex}')),
+        title: Text('${_fmtLocal(local)}  ·  ${reminder.iana}'),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            children: [
+              if (fired) const _Chip('fired', Colors.grey),
+              _Chip(reminder.source.name, _sourceColor(reminder.source)),
+              _Chip(reminder.confidence.name, _confidenceColor(reminder.confidence)),
+              _Chip('trip ${reminder.tripId}', Colors.grey),
+              _Chip('${_fmtUtc(reminder.fireInstantUtc)}Z', Colors.blueGrey),
+            ],
+          ),
         ),
+        isThreeLine: true,
       ),
-      isThreeLine: true,
     );
   }
 }
