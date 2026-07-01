@@ -73,10 +73,13 @@ class _SimulateScreenState extends ConsumerState<SimulateScreen> {
           _Card(
             title: 'Simulate a device timezone change',
             description:
-                'Overrides the zone the resolver\'s device tier reports. '
-                'Today\'s reminder (when there is no live-location signal) and '
-                'the device/fallback tiers follow it — as if the phone switched '
-                'zones. Per-trip home days keep their chosen home zone.',
+                'Overrides the zone the resolver\'s device tier reports and '
+                're-runs the scheduler — as if the phone switched zones. The '
+                'schedule deliberately stays put: home and destination days '
+                'keep their trip zones, and only a high-confidence '
+                'live-location signal can override today. The device tier is '
+                'the resolver\'s fallback for when a trip\'s own zones can\'t '
+                'resolve.',
             current: deviceSource.overrideIana == null
                 ? 'Using real device zone'
                 : 'Override: ${deviceSource.overrideIana}',

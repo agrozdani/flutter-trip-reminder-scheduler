@@ -102,6 +102,8 @@ void main() {
     final r = build(device: 'America/New_York');
     final z = await r.resolveHomeZone('Europe/Paris');
     expect(z.iana, 'Europe/Paris');
-    expect(z.source, ZoneSource.deviceTimezone);
+    expect(z.source, ZoneSource.userChosen,
+        reason: 'an explicit choice is its own provenance, not a device read');
+    expect(z.confidence, ZoneConfidence.high);
   });
 }

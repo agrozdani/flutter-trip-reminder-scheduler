@@ -259,6 +259,12 @@ string. Each result carries `{ iana, source, confidence, fallbackReason }`
 | 5 | device-locale country | fallback |
 | 6 | UTC | fallback |
 
+A trip's **home zone** takes a different path: the user chose it explicitly, so a
+valid id resolves directly as `userChosen` at *high* confidence — an explicit choice
+outranks any inferred signal — and only an invalid id falls into the cascade (with the
+location tier disabled). Destination days likewise skip the live-location tier: you are
+scheduling for a place you are not yet at.
+
 Two design choices matter here. First, a country that spans multiple zones (United
 States, Brazil, Australia) resolves at *lower confidence* and says so — the schedule
 view surfaces that, so a `low`-confidence `America/New_York` for "United States" is
@@ -386,8 +392,10 @@ no separate `pod install` step.
    - *Simulate "I'm in zone X today"* sets a high-confidence live signal; watch only
      today's reminder switch zones on the Upcoming screen.
    - *Simulate a device timezone change* overrides the zone the resolver's device tier
-     reports and reschedules; it drives today's fallback and the device/fallback tiers
-     (per-trip home days keep their chosen home zone).
+     reports and re-runs the scheduler with the `timezoneChanged` trigger. The schedule
+     deliberately stays put — home and destination days keep their trip zones, and only
+     a high-confidence live-location signal can override today; the device tier is the
+     resolver's fallback for when a trip's own zones can't resolve.
    - *Force a DST-transition reschedule* re-runs the scheduler with that trigger.
 
 Because the location and device-timezone sources are injectable, none of this needs a

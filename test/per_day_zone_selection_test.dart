@@ -45,7 +45,7 @@ void main() {
     );
 
     expect(byDay(cands, 0).iana, 'America/New_York', reason: 'pre-buffer day');
-    expect(byDay(cands, 0).source, ZoneSource.deviceTimezone);
+    expect(byDay(cands, 0).source, ZoneSource.userChosen);
 
     expect(byDay(cands, 1).iana, 'Europe/London', reason: 'first trip day');
     expect(byDay(cands, 1).source, ZoneSource.countryHeuristic);

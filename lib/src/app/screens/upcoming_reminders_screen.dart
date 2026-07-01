@@ -167,6 +167,7 @@ tz.Location _location(String iana) {
 }
 
 Color _sourceColor(ZoneSource source) => switch (source) {
+      ZoneSource.userChosen => Colors.indigo,
       ZoneSource.liveLocation => Colors.green,
       ZoneSource.deviceTimezone => Colors.blue,
       ZoneSource.countryHeuristic => Colors.deepPurple,

@@ -16,8 +16,8 @@ typedef RescheduleCallback = Future<void> Function(RescheduleTrigger trigger);
 /// - **debounce** — a burst of requests within [debounce] collapses into one;
 /// - **serialize** — runs never overlap; each awaits the previous;
 /// - **de-duplicate** — a low-priority repeat within [dedupWindow] of the last
-///   run is skipped, while high-priority triggers (a user edit, a detected DST
-///   shift, an OS-cleared schedule) always run.
+///   run is skipped, while high-priority triggers (a user edit, a live-location
+///   change, a detected DST shift, an OS-cleared schedule) always run.
 ///
 /// It reads "now" through `package:clock`, so tests drive it deterministically
 /// with `fakeAsync`.
