@@ -338,7 +338,7 @@ returned untouched. These tests are the actual proof of correctness — see
 
 ## Common pitfalls
 
-- **Storing wall-clock `DateTime`s.** The root mistake. Store the **instant**; keep the
+- **Storing wall-clock `DateTime` values.** The root mistake. Store the **instant**; keep the
   wall-clock time as zone-free intent and resolve it per day.
 - **Assuming a zone is an offset.** `Europe/London` is not "+0"; it's +0 or +1 depending
   on the instant. Always resolve against the date.
