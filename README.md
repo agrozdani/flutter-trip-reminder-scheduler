@@ -368,7 +368,7 @@ returned untouched. These tests are the actual proof of correctness — see
 
 ## Requirements & setup
 
-Toolchain: a recent **Flutter 3.x** (built and tested with Flutter 3.44 / Dart 3.12).
+Toolchain: a recent **Flutter 3.x** (built and tested with Flutter 3.47 / Dart 3.13).
 Android Studio / SDK for Android; Xcode for iOS.
 
 ```bash
