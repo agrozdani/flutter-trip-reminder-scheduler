@@ -7,9 +7,9 @@ import '../core/ports/notification_gateway.dart';
 /// [NotificationGateway] backed by `flutter_local_notifications`.
 ///
 /// This is the only place that turns a [ScheduledReminder] into a real pending
-/// OS notification. It schedules against an absolute [tz.TZDateTime] built from
-/// the reminder's UTC instant — the OS fires at that instant regardless of any
-/// later device-timezone change, which is the whole point of storing instants.
+/// OS notification. It hands the plugin the reminder's absolute instant
+/// expressed in UTC — the OS fires at that instant regardless of any later
+/// device-timezone change, which is the whole point of storing instants.
 class FlutterNotificationGateway implements NotificationGateway {
   FlutterNotificationGateway(this._plugin);
 
@@ -39,8 +39,14 @@ class FlutterNotificationGateway implements NotificationGateway {
     required String title,
     required String body,
   }) async {
+    // Express the instant in UTC, not the reminder's zone. The plugin sends the
+    // platform a wall-clock string plus a zone name and lets it rebuild the
+    // instant; on a fall-back day that pair names two instants, and the
+    // platform picks its own (Android's ZonedDateTime.of takes the earlier),
+    // undoing WallClock's later-occurrence choice. UTC has no DST, so the pair
+    // names exactly one instant.
     final scheduledDate =
-        tz.TZDateTime.from(reminder.fireInstantUtc, _location(reminder.iana));
+        tz.TZDateTime.from(reminder.fireInstantUtc, tz.getLocation('UTC'));
     await _plugin.zonedSchedule(
       id: reminder.id,
       scheduledDate: scheduledDate,
@@ -62,13 +68,5 @@ class FlutterNotificationGateway implements NotificationGateway {
   Future<List<int>> pendingIds() async {
     final pending = await _plugin.pendingNotificationRequests();
     return pending.map((p) => p.id).toList();
-  }
-
-  tz.Location _location(String iana) {
-    try {
-      return tz.getLocation(iana);
-    } catch (_) {
-      return tz.UTC;
-    }
   }
 }
