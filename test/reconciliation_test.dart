@@ -180,8 +180,8 @@ void main() {
 
   test('same-minute collisions are nudged apart', () async {
     final engine = ScheduleEngine(resolver: resolver());
-    // Two single-day trips at the same destination, same reminder time -> both
-    // resolve to 08:00 UTC on the same day.
+    // Three single-day trips at the same destination, same reminder time ->
+    // all resolve to 08:00 UTC on the same day.
     Trip oneDay(String id) => Trip(
           id: id,
           homeIana: 'America/New_York',
@@ -193,16 +193,44 @@ void main() {
 
     final result = await engine.reconcile(
       registry: ReminderRegistry.empty,
-      trips: [oneDay('A'), oneDay('B')],
+      trips: [oneDay('A'), oneDay('B'), oneDay('C')],
       now: now,
       trigger: RescheduleTrigger.initialSchedule,
     );
 
-    expect(result.registry.reminders, hasLength(2));
-    final a = result.registry.reminders.firstWhere((r) => r.tripId == 'A');
-    final b = result.registry.reminders.firstWhere((r) => r.tripId == 'B');
-    expect(a.fireInstantUtc, isNot(b.fireInstantUtc));
-    expect(a.fireInstantUtc.difference(b.fireInstantUtc).abs(),
-        const Duration(seconds: 5));
+    expect(result.registry.reminders, hasLength(3));
+    final base = DateTime.utc(2024, 6, 12, 8, 0);
+    expect(
+      {for (final r in result.registry.reminders) r.tripId: r.fireInstantUtc},
+      {
+        'A': base,
+        'B': base.add(const Duration(seconds: 5)),
+        'C': base.add(const Duration(seconds: 10)),
+      },
+      reason: 'each further same-minute reminder steps another 5s',
+    );
+  });
+
+  test('the cap keeps the soonest reminders across trips, not input order',
+      () async {
+    final engine = ScheduleEngine(resolver: resolver(), maxScheduled: 10);
+    Trip tenDays(String id, int startDay) => Trip(
+          id: id,
+          homeIana: 'America/New_York',
+          destinationCountry: 'United Kingdom',
+          startDate: DateTime.utc(2024, 6, startDay),
+          endDate: DateTime.utc(2024, 6, startDay + 9),
+          reminderTime: const ReminderTime(9, 0),
+        );
+
+    // 'late' is listed first but starts after 'early' has ended.
+    final result = await engine.reconcile(
+      registry: ReminderRegistry.empty,
+      trips: [tenDays('late', 20), tenDays('early', 1)],
+      now: now,
+      trigger: RescheduleTrigger.initialSchedule,
+    );
+
+    expect(result.registry.reminders.map((r) => r.tripId).toSet(), {'early'});
   });
 }

@@ -48,6 +48,18 @@ void main() {
     expect(t, RescheduleTrigger.osCleared);
   });
 
+  test('OS-cleared outranks cold start and periodic (cleared after long idle)',
+      () {
+    for (final idle in const [Duration(hours: 7), Duration(days: 21)]) {
+      final t = recovery.decide(
+        registry: registry(lastScheduleAtUtc: now.subtract(idle)),
+        pendingIds: const [],
+        now: now,
+      );
+      expect(t, RescheduleTrigger.osCleared, reason: 'idle for $idle');
+    }
+  });
+
   test('reminders that have all fired are not mistaken for an OS clear', () {
     // sample() fires at 13:00 UTC; at 14:00 it has fired, so the OS rightly
     // lists nothing pending.

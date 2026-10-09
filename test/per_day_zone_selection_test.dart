@@ -75,6 +75,20 @@ void main() {
     expect(byDay(cands, 4).iana, 'America/New_York');
   });
 
+  test('"today" is the home-zone date, not the UTC date', () async {
+    final engine = engineWith(location: 'Asia/Dubai');
+    // 02:00 UTC on 2024-06-12 is still 22:00 on 2024-06-11 in New York, so
+    // home "today" is day 0 (already past) and day 1 is tomorrow.
+    final cands = await engine.candidatesFor(
+      nyToLondon(),
+      now: DateTime.utc(2024, 6, 12, 2, 0),
+      trigger: RescheduleTrigger.locationChanged,
+    );
+
+    expect(byDay(cands, 1).iana, 'Europe/London',
+        reason: 'day 1 is tomorrow at home, so the live override must not apply');
+  });
+
   test('today without a live signal falls through to the phase zone', () async {
     final engine = engineWith(); // no location
     final cands = await engine.candidatesFor(
