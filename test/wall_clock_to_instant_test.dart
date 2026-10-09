@@ -39,7 +39,7 @@ void main() {
   test('date-line: Apia 09:00 maps to the previous UTC day', () {
     final loc = tz.getLocation('Pacific/Apia');
     final result = WallClock.toInstant(loc, 2024, 1, 15, 9, 0);
-    // Apia sits far east of UTC (+13/+14), so a morning there is the previous
+    // Apia sits far east of UTC (+13), so a morning there is the previous
     // day in UTC. Asserting the day avoids hard-coding the exact offset.
     expect(result.day, 15);
     expect(result.hour, 9);

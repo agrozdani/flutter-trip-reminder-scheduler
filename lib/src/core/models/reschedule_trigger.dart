@@ -15,7 +15,7 @@ enum RescheduleTrigger {
   /// A live-location signal changed which zone "today" should use.
   locationChanged,
 
-  /// App launched after being closed for a while (> 6h since last schedule).
+  /// App launched after being closed for a while (≥ 6h since last schedule).
   coldStart,
 
   /// A daylight-saving transition was detected.

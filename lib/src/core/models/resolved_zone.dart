@@ -35,7 +35,7 @@ enum ZoneConfidence { high, medium, low, fallback }
 ///
 /// The whole point of this type is that a resolver returns *why* and *how
 /// sure* it is, not just a bare IANA string. The UI surfaces this so a reminder
-/// scheduled against `Africa/Lagos (countryHeuristic, low)` is visibly
+/// scheduled against `America/New_York (countryHeuristic, low)` is visibly
 /// different from one scheduled against `Europe/London (liveLocation, high)`.
 class ResolvedZone {
   ResolvedZone({

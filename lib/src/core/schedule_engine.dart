@@ -29,7 +29,7 @@ class ScheduleEngine {
   final int maxScheduled;
 
   /// How far apart to nudge reminders that would otherwise fire in the same
-  /// minute, so none is silently dropped by the OS as a duplicate.
+  /// minute, spacing them out in a deterministic order.
   final Duration microOffset;
 
   /// Build the desired schedule for [trips] and reconcile it against
@@ -165,7 +165,9 @@ class ScheduleEngine {
   /// [dayIndex] in afterwards with the same `* 31` multiplier used between
   /// characters let it share a range with the trip-id hash, so two trips whose
   /// hashes differed by `k` collided whenever their day indices differed by
-  /// `31 * k`; the `#`-separated composite key keeps distinct pairs distinct.
+  /// `31 * k`; hashing the `#`-separated composite key removes that pattern.
+  /// Like any 31-bit hash it can still collide by chance, just not
+  /// systematically.
   static int deterministicId(String tripId, int dayIndex) {
     final key = '$tripId#$dayIndex';
     var hash = 17;
@@ -175,8 +177,8 @@ class ScheduleEngine {
     return hash;
   }
 
-  /// Push reminders sharing a minute apart by [microOffset] each, in order, so
-  /// the OS does not coalesce or drop them.
+  /// Push reminders sharing a minute apart by [microOffset] each, in sort
+  /// order: the first keeps its instant, each later one moves one step more.
   List<ScheduledReminder> _applyMicroOffsets(List<ScheduledReminder> sorted) {
     final perMinute = <int, int>{};
     final out = <ScheduledReminder>[];
