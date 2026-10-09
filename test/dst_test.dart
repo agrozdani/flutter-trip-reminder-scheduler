@@ -70,6 +70,19 @@ void main() {
     });
   });
 
+  group('multi-hour transition — Córdoba falls back two hours', () {
+    // 1991-03-03 02:00 UTC: -02 -> -04, so the wall times 22:00–23:59 on
+    // 1991-03-02 happen twice.
+    test('the first hour of a two-hour overlap takes the later occurrence', () {
+      final loc = tz.getLocation('America/Argentina/Cordoba');
+      final result = WallClock.toInstant(loc, 1991, 3, 2, 22, 30);
+      // 22:30 occurs at 00:30 UTC (-02) then 02:30 UTC (-04); pick the later.
+      // A probe a fixed hour ahead never reaches the transition from here.
+      expect(result.toUtc(), DateTime.utc(1991, 3, 3, 2, 30));
+      expect(result.timeZoneOffset, const Duration(hours: -4));
+    });
+  });
+
   test('an unambiguous time is returned unchanged', () {
     final loc = tz.getLocation('America/New_York');
     final result = WallClock.toInstant(loc, 2024, 6, 15, 9, 0);
