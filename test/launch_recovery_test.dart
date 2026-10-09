@@ -48,6 +48,17 @@ void main() {
     expect(t, RescheduleTrigger.osCleared);
   });
 
+  test('reminders that have all fired are not mistaken for an OS clear', () {
+    // sample() fires at 13:00 UTC; at 14:00 it has fired, so the OS rightly
+    // lists nothing pending.
+    final t = recovery.decide(
+      registry: registry(lastScheduleAtUtc: DateTime.utc(2024, 6, 12, 12, 0)),
+      pendingIds: const [],
+      now: DateTime.utc(2024, 6, 12, 14, 0),
+    );
+    expect(t, isNull);
+  });
+
   test('fresh install (never scheduled) is a cold start', () {
     final t = recovery.decide(
       registry: ReminderRegistry.empty,

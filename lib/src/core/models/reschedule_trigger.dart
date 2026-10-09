@@ -21,7 +21,8 @@ enum RescheduleTrigger {
   /// A daylight-saving transition was detected.
   dstTransition,
 
-  /// The OS cleared pending notifications (e.g. on reboot) and we noticed.
+  /// The OS reports nothing pending although the registry still expects
+  /// future reminders — the platform lost them and we noticed.
   osCleared,
 
   /// Periodic top-up so the schedule never drifts too stale.

@@ -129,6 +129,30 @@ void main() {
     expect(onlyA.plan.toSchedule, isEmpty);
   });
 
+  test('an already-fired reminder is pruned without a cancel', () async {
+    final engine = ScheduleEngine(resolver: resolver());
+    final first = await engine.reconcile(
+      registry: ReminderRegistry.empty,
+      trips: [trip('t1')],
+      now: now,
+      trigger: RescheduleTrigger.initialSchedule,
+    );
+    final fired = first.registry.sortedByFireTime.first;
+
+    final second = await engine.reconcile(
+      registry: first.registry,
+      trips: [trip('t1')],
+      now: fired.fireInstantUtc.add(const Duration(minutes: 1)),
+      trigger: RescheduleTrigger.appResume,
+    );
+
+    // Cancelling would also dismiss the notification it just delivered.
+    expect(second.plan.toCancel, isEmpty);
+    expect(second.plan.toSchedule, isEmpty);
+    expect(second.registry.ids, isNot(contains(fired.id)));
+    expect(second.registry.reminders, hasLength(4));
+  });
+
   test('the cap is enforced, keeping the soonest reminders', () async {
     final engine = ScheduleEngine(resolver: resolver(), maxScheduled: 10);
     final longTrip = Trip(

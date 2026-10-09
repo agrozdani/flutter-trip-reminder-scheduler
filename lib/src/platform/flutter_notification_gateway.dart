@@ -62,9 +62,6 @@ class FlutterNotificationGateway implements NotificationGateway {
   Future<void> cancel(int id) => _plugin.cancel(id: id);
 
   @override
-  Future<void> cancelAll() => _plugin.cancelAll();
-
-  @override
   Future<List<int>> pendingIds() async {
     final pending = await _plugin.pendingNotificationRequests();
     return pending.map((p) => p.id).toList();

@@ -68,7 +68,7 @@ class ScheduleEngine {
     final spaced = _applyMicroOffsets(desired);
     final capped = spaced.take(maxScheduled).toList();
 
-    final plan = _diff(registry, capped);
+    final plan = _diff(registry, capped, nowUtc);
     final newRegistry = registry.copyWith(
       reminders: capped,
       lastZoneId: capped.isNotEmpty ? capped.first.iana : registry.lastZoneId,
@@ -198,9 +198,14 @@ class ScheduleEngine {
 
   /// Diff desired against persisted: schedule new/changed ids, cancel stale
   /// ids, leave identical ones untouched.
+  ///
+  /// A persisted reminder whose instant has passed has already fired, so there
+  /// is nothing pending to cancel — and the plugin's cancel would also dismiss
+  /// the notification it delivered. It just drops out of the new registry.
   ReconciliationPlan _diff(
     ReminderRegistry registry,
     List<ScheduledReminder> desired,
+    DateTime nowUtc,
   ) {
     final existing = {for (final r in registry.reminders) r.id: r};
     final desiredIds = desired.map((r) => r.id).toSet();
@@ -215,8 +220,11 @@ class ScheduleEngine {
         unchanged.add(d.id);
       }
     }
-    final toCancel =
-        registry.ids.where((id) => !desiredIds.contains(id)).toList();
+    final toCancel = [
+      for (final r in registry.reminders)
+        if (!desiredIds.contains(r.id) && r.fireInstantUtc.isAfter(nowUtc))
+          r.id,
+    ];
 
     return ReconciliationPlan(
       toSchedule: toSchedule,
