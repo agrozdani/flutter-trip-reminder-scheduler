@@ -32,6 +32,19 @@ void main() {
     });
   });
 
+  test('an OS-cleared resync is never coalesced into another trigger', () {
+    fakeAsync((async) {
+      final runs = <RescheduleTrigger>[];
+      final c = RescheduleCoordinator(onReschedule: (t) async => runs.add(t));
+
+      c.request(RescheduleTrigger.locationChanged); // high
+      c.request(RescheduleTrigger.osCleared); // high, and needs a full resync
+      async.elapse(const Duration(milliseconds: 300));
+
+      expect(runs, [RescheduleTrigger.osCleared]);
+    });
+  });
+
   test('runs are serialized — they never overlap', () {
     fakeAsync((async) {
       var active = 0;

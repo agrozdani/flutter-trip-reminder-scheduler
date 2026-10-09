@@ -96,8 +96,11 @@ class RescheduleCoordinator {
 
   /// Keeps a high-priority trigger once one has been seen during a debounce
   /// window, so it is never overwritten by a later low-priority request.
+  /// [RescheduleTrigger.osCleared] outranks even other high-priority triggers:
+  /// it changes what the run does (a full resync), which covers any of them.
   RescheduleTrigger _moreImportantOf(RescheduleTrigger? current, RescheduleTrigger next) {
     if (current == null) return next;
+    if (next == RescheduleTrigger.osCleared) return next;
     if (next.isHighPriority && !current.isHighPriority) return next;
     return current;
   }
