@@ -17,7 +17,9 @@ class ReminderRegistry {
   /// Everything currently believed to be scheduled with the OS.
   final List<ScheduledReminder> reminders;
 
-  /// The dominant zone at the last schedule, used to detect DST shifts.
+  /// The soonest reminder's zone at the last schedule. Launch recovery checks
+  /// it for a DST shift, and the next reschedule feeds it to the resolver as
+  /// the last-known zone.
   final String? lastZoneId;
 
   /// When the last full schedule ran, used for cold-start / periodic checks.

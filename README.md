@@ -2,7 +2,7 @@
 
 ![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter&logoColor=white)
 ![Platforms](https://img.shields.io/badge/platforms-Android%20%7C%20iOS-555)
-![Tests](https://img.shields.io/badge/tests-51%20passing-3DA639)
+![Tests](https://img.shields.io/badge/tests-66%20passing-3DA639)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
 A reference implementation of **timezone-aware local notification scheduling** for
@@ -15,7 +15,7 @@ The interesting part is not the UI. It is the scheduling engine: a **pure,
 framework-agnostic Dart core** that resolves a wall-clock time + an IANA zone into an
 absolute UTC instant (handling the days that don't exist and the days that happen
 twice), reconciles a desired schedule against what's already persisted without
-duplicating, and funnels a dozen kinds of "something changed, reschedule" events
+duplicating, and funnels nine kinds of "something changed, reschedule" events
 through one debounced, serialized entry point. The Flutter app on top is deliberately
 minimal.
 
@@ -54,7 +54,7 @@ happen around it to stay correct over time, is what this project is about.
 | Idempotent reconciliation against a registry | Repeated reschedules must converge, not pile up duplicates | [`schedule_engine.dart` → `reconcile`](lib/src/core/schedule_engine.dart), [`reminder_registry.dart`](lib/src/core/models/reminder_registry.dart) |
 | Deterministic ids + collision offsets + a cap | Stable ids make diffs possible; same-minute reminders get nudged apart; iOS caps pending at ~64 | [`schedule_engine.dart`](lib/src/core/schedule_engine.dart) |
 | One debounced, serialized, de-duplicated entry point | Many triggers; uncoordinated they race and duplicate work | [`reschedule_coordinator.dart`](lib/src/core/reschedule_coordinator.dart) |
-| Launch-time recovery | The OS clears pending notifications on reboot; the app can sit idle across a DST change | [`launch_recovery.dart`](lib/src/core/launch_recovery.dart) |
+| Launch-time recovery | The OS can lose pending notifications while the registry survives; the app can sit idle across a DST change | [`launch_recovery.dart`](lib/src/core/launch_recovery.dart) |
 | A test seam by design | Every timezone / travel / DST scenario is reproducible with no GPS, network, or device clock | [`ports/`](lib/src/core/ports), [`test/`](test) |
 
 ## The hard problem: reminders that travel with you
@@ -110,7 +110,7 @@ An **IANA timezone** (e.g. `America/New_York`, `Africa/Lagos`, `Asia/Kolkata`) i
 a fixed UTC offset — it's a *named set of rules* describing how a region's offset has
 changed over history, including when daylight saving starts and ends. `Europe/London`
 is UTC+0 in January and UTC+1 in July. `Asia/Kolkata` is a permanent UTC+05:30.
-`Pacific/Apia` sits east of the date line at UTC+13/+14.
+`Pacific/Apia` sits west of the date line at UTC+13.
 
 Because the offset depends on the *instant*, you cannot reduce a zone to a number. The
 [`timezone`](https://pub.dev/packages/timezone) package ships the IANA database and a
@@ -201,7 +201,10 @@ flowchart TB
     end
 
     Screens --> TC --> RS
-    RS --> RC --> EN --> TR --> WC
+    RS --> RC
+    RS --> EN
+    EN --> TR
+    EN --> WC
     RS --> LR
     RS --> NG
     RS --> RST
@@ -278,22 +281,23 @@ All DST logic lives in one short pure function,
 [`WallClock.toInstant`](lib/src/core/wall_clock.dart):
 
 - **Gap (spring-forward).** The `timezone` package normalizes a non-existent wall time
-  forward; we detect that the hour we got back differs from the hour we asked for and
-  *accept* the shift. A reminder for a skipped `02:30` fires at `03:30` rather than
+  forward; we detect that the wall time we got back differs from the one we asked for
+  and *accept* the shift. A reminder for a skipped `02:30` fires at `03:30` rather than
   disappearing.
 - **Overlap (fall-back).** We build the candidate for the *later*, standard-time
-  occurrence — the wall clock read as UTC minus the post-transition offset — and accept
-  it only if it **round-trips back to exactly the requested wall time** and lands after
-  the first occurrence. That verification deliberately chooses the **later** occurrence
-  so an ambiguous time always resolves the same way, and (unlike a fixed one-hour probe)
-  stays correct for sub-hour transitions such as Lord Howe Island's 30-minute shift.
-  Building from `DateTime.utc(...)` keeps the result independent of the host device's
-  own offset.
+  occurrence — the wall clock read as UTC minus the offset that takes effect at the
+  zone's next transition — and accept it only if it **round-trips back to exactly the
+  requested wall time** and lands after the first occurrence. That verification
+  deliberately chooses the **later** occurrence so an ambiguous time always resolves the
+  same way. Reading the offset from the real next transition, rather than probing a
+  fixed hour ahead, keeps it correct for transitions of any size: Lord Howe Island's
+  30-minute shift as well as two-hour fall-backs. Building from `DateTime.utc(...)`
+  keeps the result independent of the host device's own offset.
 
 [`dst_test.dart`](test/dst_test.dart) verifies both against real 2024 transitions in
-both hemispheres (New York and Sydney) and a sub-hour one (Lord Howe), plus a control
-that an unambiguous time is
-returned untouched. These tests are the actual proof of correctness — see
+both hemispheres (New York and Sydney), a sub-hour one (Lord Howe), and a two-hour
+fall-back (Córdoba, 1991), plus a control that an unambiguous time is returned
+untouched. These tests are the actual proof of correctness — see
 [Common pitfalls](#common-pitfalls) for why a simulator can't be.
 
 ## Key engineering decisions
@@ -305,7 +309,8 @@ returned untouched. These tests are the actual proof of correctness — see
 - **Time is injected, never read ambiently in the hot path.** The engine and recovery
   take `now` as a parameter; the coordinator reads `package:clock`'s ambient clock,
   which `fakeAsync` overrides in tests. Nothing in the core calls `DateTime.now()`
-  directly (the UI uses it only for default form dates and trip ids).
+  directly (the UI uses it only for the trip form's default dates, its date-picker
+  range, and trip ids).
 - **Deterministic notification ids.** An id is a stable hash of `(tripId, dayIndex)`
   ([`ScheduleEngine.deterministicId`](lib/src/core/schedule_engine.dart)), so the same
   day always maps to the same id across runs — the precondition for diffing instead of
@@ -345,10 +350,11 @@ returned untouched. These tests are the actual proof of correctness — see
 - **Letting the gap/overlap "just happen."** Without explicit handling, a spring-forward
   reminder can silently vanish and a fall-back reminder can fire an hour off. Decide a
   policy and test it.
-- **Trusting the registry after a reboot.** The OS clears pending notifications on
-  reboot, but your persisted registry still claims they exist — so a plain diff would
-  conclude "nothing changed" and reschedule nothing. The OS-cleared path detects this
-  (registry non-empty, OS reports zero pending) and forces a full resync.
+- **Trusting the registry blindly.** The registry records what you asked the OS to
+  schedule, not what it still holds. If the OS loses its pending set while the registry
+  survives, a plain diff would conclude "nothing changed" and reschedule nothing. The
+  OS-cleared path detects this (the registry still expects future reminders, the OS
+  reports zero pending) and forces a full resync.
 - **Believing the simulator.** An iOS simulator / Android emulator **cannot change the
   device clock or timezone**, so you cannot reproduce a real DST crossing by hand. That
   is exactly why the DST math is a pure function with unit tests, and why the app has a
@@ -360,16 +366,17 @@ returned untouched. These tests are the actual proof of correctness — see
 | Reality | How the design accommodates it |
 |---|---|
 | **iOS caps pending local notifications at ~64.** | The engine caps the desired set at 64, soonest-first ([`schedule_engine.dart`](lib/src/core/schedule_engine.dart)), and launch-time recovery periodically replenishes the queue. |
-| **Android 12+ gates exact alarms.** | The manifest declares `SCHEDULE_EXACT_ALARM` (≤ API 32) and `USE_EXACT_ALARM` (33+); the bootstrap requests the permission, and scheduling uses `AndroidScheduleMode.exactAllowWhileIdle` ([`flutter_notification_gateway.dart`](lib/src/platform/flutter_notification_gateway.dart)). |
-| **The OS clears pending notifications on reboot.** | `RECEIVE_BOOT_COMPLETED` + the plugin's boot receiver re-arm them; independently, [`launch_recovery.dart`](lib/src/core/launch_recovery.dart) detects the registry-non-empty-but-OS-empty case and resyncs. |
+| **Android 12+ gates exact alarms.** | The manifest declares `SCHEDULE_EXACT_ALARM` (≤ API 32) and `USE_EXACT_ALARM` (33+); the bootstrap requests the permission, and scheduling uses `AndroidScheduleMode.exactAllowWhileIdle` ([`flutter_notification_gateway.dart`](lib/src/platform/flutter_notification_gateway.dart)). Google Play restricts `USE_EXACT_ALARM` — see [Adapting it for your own app](#adapting-it-for-your-own-app). |
+| **Android clears scheduled alarms on reboot.** | `RECEIVE_BOOT_COMPLETED` + the plugin's boot receiver re-arm them from the plugin's own saved copy. Independently, [`launch_recovery.dart`](lib/src/core/launch_recovery.dart) resyncs whenever the registry still expects future reminders but the OS reports none pending. |
+| **Cancelling also dismisses.** | The plugin's `cancel` removes a delivered notification as well as a pending one, so reconciliation never cancels a reminder whose instant has passed; it just drops it from the registry. |
 | **`flutter_local_notifications` uses `java.time`.** | Core-library desugaring is enabled in [`android/app/build.gradle.kts`](android/app/build.gradle.kts), without which the Android build fails. |
-| **Apps sit idle for days, across DST.** | Launch recovery distinguishes cold start (> 6 h), periodic replenish (> 20 days), and a DST shift (stored zone's offset differs now). |
+| **Apps sit idle for days, across DST.** | Launch recovery distinguishes cold start (≥ 6 h), periodic replenish (≥ 20 days), and a DST shift (stored zone's offset differs now). |
 | **Background execution is limited.** | The design does no background work — it reschedules at launch and on foreground triggers, and relies on the OS to fire already-scheduled instants. |
 
 ## Requirements & setup
 
-Toolchain: a recent **Flutter 3.x** (built and tested with Flutter 3.47 / Dart 3.13).
-Android Studio / SDK for Android; Xcode for iOS.
+Toolchain: **Flutter 3.44 or newer** (Dart 3.12+); built and tested with Flutter 3.47 /
+Dart 3.13. Android Studio / SDK for Android; Xcode for iOS.
 
 ```bash
 flutter pub get
@@ -395,10 +402,11 @@ no separate `pod install` step.
    - *Simulate "I'm in zone X today"* sets a high-confidence live signal; watch only
      today's reminder switch zones on the Upcoming screen.
    - *Simulate a device timezone change* overrides the zone the resolver's device tier
-     reports and re-runs the scheduler with the `timezoneChanged` trigger. The schedule
-     deliberately stays put — home and destination days keep their trip zones, and only
-     a high-confidence live-location signal can override today; the device tier is the
-     resolver's fallback for when a trip's own zones can't resolve.
+     reports and re-runs the scheduler with the `timezoneChanged` trigger (a
+     low-priority trigger, so it is skipped if another reschedule ran in the last 5 s).
+     The schedule deliberately stays put — home and destination days keep their trip
+     zones, and only a high-confidence live-location signal can override today; the
+     device tier is the resolver's fallback for when a trip's own zones can't resolve.
    - *Force a DST-transition reschedule* re-runs the scheduler with that trigger.
 
 Because the location and device-timezone sources are injectable, none of this needs a
@@ -449,38 +457,61 @@ Ordered from the most approachable to the most involved.
 flutter test
 ```
 
-The 51 tests run with no radio, no network, and no real clock — fakes are injected
-through the ports and time is controlled with `package:clock` / `fakeAsync`.
+The 66 tests need no device, radio, or network — fakes are injected through the ports,
+platform channels are mocked, and scheduling time is controlled with `package:clock` /
+`fakeAsync`.
 
 - [`resolver_cascade_test.dart`](test/resolver_cascade_test.dart) — each tier wins under
-  the right conditions, UTC when all fail, provenance is correct, multi-zone country
-  degrades confidence.
+  the right conditions and outranks the tiers below it, UTC when all fail, provenance
+  is correct, multi-zone country degrades confidence.
 - [`wall_clock_to_instant_test.dart`](test/wall_clock_to_instant_test.dart) — conversion
   across zones incl. a half-hour offset and a date-line case.
 - [`dst_test.dart`](test/dst_test.dart) — spring-forward gap and fall-back overlap in
-  both hemispheres, plus a sub-hour (Lord Howe, 30-minute) transition.
+  both hemispheres, plus a sub-hour (Lord Howe, 30-minute) transition and a two-hour
+  fall-back (Córdoba, 1991).
 - [`per_day_zone_selection_test.dart`](test/per_day_zone_selection_test.dart) — home vs.
-  destination vs. today-override.
+  destination vs. today-override, with "today" taken as the home-zone date.
 - [`reconciliation_test.dart`](test/reconciliation_test.dart) — no duplicates on re-run,
-  exact-id reschedule on edit, exact-id cancel on removal, the cap, collision spacing,
-  and cross-trip id-collision freedom.
+  exact-id reschedule on edit, exact-id cancel on removal, an already-fired reminder
+  pruned without a cancel, the cap (soonest first, across trips), collision spacing,
+  and no patterned id collisions across trips.
 - [`trigger_coordinator_test.dart`](test/trigger_coordinator_test.dart) — debounce,
-  serialize, dedup, high-priority bypass, and recovery from a failed run.
-- [`launch_recovery_test.dart`](test/launch_recovery_test.dart) — OS-cleared, cold
-  start, periodic, DST-shift detection.
+  serialize (a mid-run request waits its turn), dedup, high-priority bypass, an
+  OS-cleared resync never coalesced away, and recovery from a failed run.
+- [`launch_recovery_test.dart`](test/launch_recovery_test.dart) — OS-cleared (ahead of
+  the idle-time checks, but not when every reminder has simply fired), cold start,
+  periodic, DST-shift detection.
 - [`scheduler_integration_test.dart`](test/scheduler_integration_test.dart) — the
   orchestrator end to end over fakes, including OS-cleared full resync.
+- [`notification_gateway_test.dart`](test/notification_gateway_test.dart) — the gateway
+  hands the plugin a UTC wall time, so the platform can't re-resolve a fall-back
+  reminder to the other occurrence; a reminder that comes due mid-run is scheduled two
+  seconds out instead of aborting the run.
+- [`trip_form_screen_test.dart`](test/trip_form_screen_test.dart) — a double tap on
+  *Save* adds the trip once and returns to the home shell.
+- [`home_shell_test.dart`](test/home_shell_test.dart) — a failed launch-time or
+  resume reschedule is reported rather than left unhandled, and the Upcoming view
+  still refreshes, as it does after a successful resume.
 - [`fired_reminders_provider_test.dart`](test/fired_reminders_provider_test.dart) — the
-  Upcoming screen's "fired" badge state flips exactly at each fire instant, driven by a
-  single re-armed timer rather than polling.
+  Upcoming screen's "fired" badge state flips within a second of each fire instant,
+  driven by a single re-armed timer rather than polling.
 
 ## Adapting it for your own app
 
 This is a **reference implementation**, not a published package. Points to address when
 building on it:
 
-- **Change the identifiers.** `com.example.trip_reminder_scheduler` is a placeholder
-  application id / bundle id; set your own before shipping.
+- **Change the identifiers.** `com.example.trip_reminder_scheduler` (Android application
+  id) and `com.example.tripReminderScheduler` (iOS bundle id) are placeholders; set your
+  own before shipping.
+- **Check the exact-alarm permission against store policy.** Google Play allows
+  `USE_EXACT_ALARM` only when an app's core function is an alarm/timer or a calendar.
+  If yours isn't, drop it and either declare `SCHEDULE_EXACT_ALARM` for every API level
+  or schedule with an inexact `AndroidScheduleMode`. `SCHEDULE_EXACT_ALARM` alone isn't
+  enough: Android 14+ no longer pre-grants it to most newly installed apps targeting
+  API 33+, and while it's denied the plugin rejects every `exactAllowWhileIdle`
+  schedule with `exact_alarms_not_permitted`. Check `canScheduleExactNotifications()`
+  before scheduling and fall back to `inexactAllowWhileIdle` when it returns false.
 - **Swap the adapters, keep the core.** Replace
   [`ManualLocationZoneSource`](lib/src/platform/manual_location_zone_source.dart) with a
   real GPS + reverse-geocoding implementation of `LocationZoneSource`; replace
@@ -488,8 +519,9 @@ building on it:
   dataset (and add region/state refinement). The engine and resolver don't change.
 - **Carry your own content.** Reminders here are generic ("Trip reminder"). Pass real
   titles/bodies through `ReminderScheduler`'s content builders, or extend the model.
-- **Persist however you like.** `RegistryStore` is plain `shared_preferences` JSON;
-  point it at a database or an encrypted store by writing one adapter.
+- **Persist however you like.** The bundled `RegistryStore` adapter is plain
+  `shared_preferences` JSON; point it at a database or an encrypted store by writing
+  one adapter.
 
 ## What is deliberately NOT here
 
@@ -511,6 +543,8 @@ Non-goals that mark the boundary of this implementation:
 MIT — see [LICENSE](LICENSE). Uses the open-source
 [`timezone`](https://pub.dev/packages/timezone),
 [`flutter_local_notifications`](https://pub.dev/packages/flutter_local_notifications),
-[`flutter_timezone`](https://pub.dev/packages/flutter_timezone), and
-[`flutter_riverpod`](https://pub.dev/packages/flutter_riverpod) packages, fetched as
-dependencies rather than vendored here.
+[`flutter_timezone`](https://pub.dev/packages/flutter_timezone),
+[`flutter_riverpod`](https://pub.dev/packages/flutter_riverpod),
+[`shared_preferences`](https://pub.dev/packages/shared_preferences), and
+[`clock`](https://pub.dev/packages/clock) packages, fetched as dependencies rather than
+vendored here.

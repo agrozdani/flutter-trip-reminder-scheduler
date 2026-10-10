@@ -102,8 +102,11 @@ final upcomingRemindersProvider = FutureProvider<ReminderRegistry>(
 /// `package:clock`, so tests drive the boundary with `fakeAsync`.
 ///
 /// `autoDispose` is a safety net rather than a real optimization here: the
-/// home shell keeps every tab mounted in an `IndexedStack`, so this provider
-/// (and its single armed timer) lives for the whole foreground session.
+/// home shell's `IndexedStack` keeps every tab mounted and doesn't pause hidden
+/// ones, so while any reminder is listed this provider (and its single armed
+/// timer) lives for the whole foreground session. A full-screen route over the
+/// shell pauses it rather than disposing it; a boundary crossed meanwhile is
+/// applied when the route pops.
 final firedReminderIdsProvider = Provider.autoDispose<Set<int>>((ref) {
   final registry = ref.watch(upcomingRemindersProvider).value;
   if (registry == null) return const <int>{};

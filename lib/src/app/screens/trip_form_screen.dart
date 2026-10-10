@@ -25,6 +25,7 @@ class _TripFormScreenState extends ConsumerState<TripFormScreen> {
   TimeOfDay _reminder = const TimeOfDay(hour: 9, minute: 0);
   int _preBuffer = 1;
   int _postBuffer = 1;
+  bool _saving = false;
 
   @override
   void initState() {
@@ -104,7 +105,7 @@ class _TripFormScreenState extends ConsumerState<TripFormScreen> {
           FilledButton.icon(
             icon: const Icon(Icons.save),
             label: const Text('Save & schedule'),
-            onPressed: _save,
+            onPressed: _saving ? null : _save,
           ),
         ],
       ),
@@ -112,6 +113,10 @@ class _TripFormScreenState extends ConsumerState<TripFormScreen> {
   }
 
   Future<void> _save() async {
+    // One save per form: addTrip awaits the debounced reschedule before we
+    // pop, and a second tap in that window would add the trip twice and pop
+    // the home shell off the navigator.
+    setState(() => _saving = true);
     final trip = Trip(
       id: DateTime.now().microsecondsSinceEpoch.toString(),
       homeIana: _homeIana,

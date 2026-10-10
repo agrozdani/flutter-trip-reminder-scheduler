@@ -2,7 +2,8 @@
     <!-- Post notifications on Android 13+ (runtime permission). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Exact alarms: SCHEDULE_EXACT_ALARM up to API 32, USE_EXACT_ALARM from
-         API 33+ for an app whose core function is timed reminders. -->
+         API 33+. Google Play allows USE_EXACT_ALARM only for alarm/timer and
+         calendar apps; see "Adapting it for your own app" in the README. -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"
         android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />

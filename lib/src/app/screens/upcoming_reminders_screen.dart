@@ -83,7 +83,7 @@ class _Header extends StatelessWidget {
                 Text('$count scheduled',
                     style: Theme.of(context).textTheme.titleMedium),
                 if (lastZone != null)
-                  Text('Dominant zone: $lastZone',
+                  Text('Last-known zone: $lastZone',
                       style: Theme.of(context).textTheme.bodySmall),
                 if (lastAt != null)
                   Text('Last scheduled: ${_fmtUtc(lastAt!)} UTC',

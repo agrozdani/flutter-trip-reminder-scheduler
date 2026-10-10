@@ -5,11 +5,11 @@ import 'models/reschedule_trigger.dart';
 
 /// Decides whether — and why — to reschedule when the app launches.
 ///
-/// Local notifications are fragile: the OS drops pending ones on reboot, the
-/// app can sit closed across a DST change, and a long-dormant queue drains as
-/// reminders fire. This pure function inspects the persisted registry against
-/// what the OS still has pending and returns the trigger to run, or null when
-/// the schedule is still fresh and intact.
+/// Local notifications are fragile: the platform can lose pending ones while
+/// the registry survives, the app can sit closed across a DST change, and a
+/// long-dormant queue drains as reminders fire. This pure function inspects the
+/// persisted registry against what the OS still has pending and returns the
+/// trigger to run, or null when the schedule is still fresh and intact.
 ///
 /// Note: unlike the source app — whose cold-start check (≥6h) shadowed its
 /// periodic check (≥20d), making the latter unreachable at launch — the
@@ -33,9 +33,12 @@ class LaunchRecovery {
   }) {
     final nowUtc = now.toUtc();
 
-    // We believe we have a schedule, but the OS has nothing pending: it was
-    // cleared (typically a reboot). Highest priority.
-    if (registry.reminders.isNotEmpty && pendingIds.isEmpty) {
+    // We believe future reminders are scheduled, but the OS has nothing
+    // pending: it lost them. Highest priority. Reminders whose instant has
+    // passed don't count — once they fire, the OS no longer lists them.
+    final expectsPending =
+        registry.reminders.any((r) => r.fireInstantUtc.isAfter(nowUtc));
+    if (expectsPending && pendingIds.isEmpty) {
       return RescheduleTrigger.osCleared;
     }
 

@@ -74,6 +74,35 @@ void main() {
     expect(z.fallbackReason, isNotNull);
   });
 
+  test('precedence: with every signal present, each tier beats all below it',
+      () async {
+    final device = FakeDeviceTimezoneSource('America/New_York');
+    final location = FakeLocationZoneSource('Europe/London');
+    final r = TimezoneResolver(
+      deviceSource: device,
+      locationSource: location,
+      countryMap: FakeCountryZoneMap(),
+    );
+    String? lastKnown = 'Asia/Tokyo';
+    String? country = 'Nigeria';
+    Future<ZoneSource> winner() async => (await r.resolveCascade(
+          destinationCountry: country,
+          lastKnownIana: lastKnown,
+          localeCountry: 'Germany',
+        ))
+            .source;
+
+    expect(await winner(), ZoneSource.liveLocation);
+    location.iana = null;
+    expect(await winner(), ZoneSource.deviceTimezone);
+    device.iana = null;
+    expect(await winner(), ZoneSource.lastKnown);
+    lastKnown = null;
+    expect(await winner(), ZoneSource.countryHeuristic);
+    country = null;
+    expect(await winner(), ZoneSource.localeFallback);
+  });
+
   test('resolveForDestination ignores live location', () async {
     final r = build(device: 'America/New_York', location: 'Europe/London');
     final z = await r.resolveForDestination('Japan');
@@ -87,6 +116,7 @@ void main() {
     final z = await r.resolveForDestination('Atlantis');
     expect(z.iana, 'America/New_York');
     expect(z.source, ZoneSource.deviceTimezone);
+    expect(z.confidence, ZoneConfidence.medium);
     expect(z.fallbackReason, contains('Atlantis'));
   });
 

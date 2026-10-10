@@ -9,10 +9,11 @@ import 'screens/simulate_screen.dart';
 import 'screens/trips_screen.dart';
 import 'screens/upcoming_reminders_screen.dart';
 
-/// Three-tab shell. On first build it runs launch-time recovery so a reboot,
-/// long absence, or DST shift while the app was closed is reconciled before the
-/// user does anything; thereafter every return to the foreground funnels an
-/// [RescheduleTrigger.appResume] through the same coordinator.
+/// Three-tab shell. On first build it runs launch-time recovery so a lost
+/// pending set, long absence, or DST shift while the app was closed is
+/// reconciled before the user does anything; thereafter every return to the
+/// foreground funnels an [RescheduleTrigger.appResume] through the same
+/// coordinator.
 class HomeShell extends ConsumerStatefulWidget {
   const HomeShell({super.key});
 
@@ -34,9 +35,11 @@ class _HomeShellState extends ConsumerState<HomeShell>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await ref.read(schedulerProvider).recoverOnLaunch();
-      if (mounted) ref.invalidate(upcomingRemindersProvider);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_rescheduleAndRefresh(
+        ref.read(schedulerProvider).recoverOnLaunch,
+        'running launch-time recovery',
+      ));
     });
   }
 
@@ -52,12 +55,31 @@ class _HomeShellState extends ConsumerState<HomeShell>
     // de-duplicates, so repeated resumes never storm; and because a reschedule is
     // an idempotent reconcile, a pass with nothing to change costs no OS calls.
     if (state == AppLifecycleState.resumed) {
-      unawaited(_rescheduleOnResume());
+      unawaited(_rescheduleAndRefresh(
+        () => ref.read(schedulerProvider).request(RescheduleTrigger.appResume),
+        'rescheduling on app resume',
+      ));
     }
   }
 
-  Future<void> _rescheduleOnResume() async {
-    await ref.read(schedulerProvider).request(RescheduleTrigger.appResume);
+  /// Runs [reschedule], then refreshes the Upcoming view whether or not it
+  /// succeeded, so the view and its fired badges reflect the current registry
+  /// and time. A failure is reported through [FlutterError] instead of being
+  /// left unhandled, and doesn't stop later triggers from running.
+  Future<void> _rescheduleAndRefresh(
+    Future<Object?> Function() reschedule,
+    String activity,
+  ) async {
+    try {
+      await reschedule();
+    } catch (error, stack) {
+      FlutterError.reportError(FlutterErrorDetails(
+        exception: error,
+        stack: stack,
+        library: 'trip_reminder_scheduler',
+        context: ErrorDescription('while $activity'),
+      ));
+    }
     if (mounted) ref.invalidate(upcomingRemindersProvider);
   }
 

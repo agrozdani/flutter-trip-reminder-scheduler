@@ -92,8 +92,8 @@ void main() {
       async.elapse(const Duration(milliseconds: 300));
       expect(gateway.scheduled, hasLength(5));
 
-      // Simulate a reboot: registry still records the reminders, but the OS
-      // reports nothing pending.
+      // Simulate the OS losing its pending set: the registry still records
+      // the reminders, but the OS reports nothing pending.
       gateway.setPending(const []);
       gateway.scheduled.clear();
 
@@ -102,6 +102,9 @@ void main() {
 
       expect(gateway.scheduled, hasLength(5),
           reason: 'osCleared forces a full resync');
+      expect(gateway.cancelled, isEmpty,
+          reason: 'nothing is pending, and a cancel would also dismiss '
+              'delivered notifications');
     }, initialTime: initialTime);
   });
 }

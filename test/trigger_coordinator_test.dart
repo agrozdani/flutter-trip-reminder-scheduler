@@ -7,12 +7,18 @@ void main() {
   test('a burst of requests coalesces into a single run', () {
     fakeAsync((async) {
       final runs = <RescheduleTrigger>[];
-      final c = RescheduleCoordinator(onReschedule: (t) async => runs.add(t));
+      final c = RescheduleCoordinator(
+        dedupWindow: Duration.zero, // so dedup can't mask a missing debounce
+        onReschedule: (t) async => runs.add(t),
+      );
 
+      // Spread across the 300ms window, then drain: only one run may happen.
       c.request(RescheduleTrigger.coldStart);
+      async.elapse(const Duration(milliseconds: 100));
       c.request(RescheduleTrigger.periodicRebalance);
+      async.elapse(const Duration(milliseconds: 100));
       c.request(RescheduleTrigger.appResume);
-      async.elapse(const Duration(milliseconds: 300));
+      async.elapse(const Duration(seconds: 5));
 
       expect(runs, hasLength(1));
     });
@@ -32,10 +38,32 @@ void main() {
     });
   });
 
-  test('runs are serialized — they never overlap', () {
+  test('an OS-cleared resync is never coalesced into another trigger', () {
+    // osCleared needs a full resync, so it must win whether it arrives before
+    // or after another high-priority trigger.
+    for (final burst in const [
+      [RescheduleTrigger.locationChanged, RescheduleTrigger.osCleared],
+      [RescheduleTrigger.osCleared, RescheduleTrigger.userEdit],
+    ]) {
+      fakeAsync((async) {
+        final runs = <RescheduleTrigger>[];
+        final c = RescheduleCoordinator(onReschedule: (t) async => runs.add(t));
+
+        for (final trigger in burst) {
+          c.request(trigger);
+        }
+        async.elapse(const Duration(milliseconds: 300));
+
+        expect(runs, [RescheduleTrigger.osCleared], reason: '$burst');
+      });
+    }
+  });
+
+  test('runs are serialized — a request arriving mid-run waits its turn', () {
     fakeAsync((async) {
       var active = 0;
       var maxActive = 0;
+      var completed = 0;
       final c = RescheduleCoordinator(
         dedupWindow: Duration.zero, // disable dedup for this test
         onReschedule: (t) async {
@@ -43,17 +71,18 @@ void main() {
           maxActive = active > maxActive ? active : maxActive;
           await Future<void>.delayed(const Duration(seconds: 1));
           active--;
+          completed++;
         },
       );
 
       c.request(RescheduleTrigger.userEdit);
-      async.elapse(const Duration(milliseconds: 300));
-      async.elapse(const Duration(seconds: 1)); // first run finishes
-      c.request(RescheduleTrigger.userEdit);
-      async.elapse(const Duration(milliseconds: 300));
-      async.elapse(const Duration(seconds: 1));
+      async.elapse(const Duration(milliseconds: 500)); // run 1: 300ms..1300ms
+      expect(active, 1, reason: 'first run is in progress');
+      c.request(RescheduleTrigger.userEdit); // arrives mid-run
+      async.elapse(const Duration(seconds: 3));
 
-      expect(maxActive, 1);
+      expect(maxActive, 1, reason: 'the second run never overlapped the first');
+      expect(completed, 2, reason: 'the mid-run request was queued, not dropped');
     });
   });
 

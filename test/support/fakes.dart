@@ -56,11 +56,10 @@ class FakeCountryZoneMap implements CountryZoneMap {
 
 /// Records what was scheduled/cancelled and what the OS reports as pending.
 /// Set [simulateOsCleared] to keep [pendingIds] empty even after scheduling, to
-/// reproduce the OS wiping pending notifications on reboot.
+/// reproduce the OS losing its pending notifications.
 class FakeNotificationGateway implements NotificationGateway {
   final List<ScheduledReminder> scheduled = [];
   final List<int> cancelled = [];
-  bool cancelledAll = false;
   bool simulateOsCleared = false;
   final List<int> _pending = [];
 
@@ -80,12 +79,6 @@ class FakeNotificationGateway implements NotificationGateway {
   Future<void> cancel(int id) async {
     cancelled.add(id);
     _pending.remove(id);
-  }
-
-  @override
-  Future<void> cancelAll() async {
-    cancelledAll = true;
-    _pending.clear();
   }
 
   @override

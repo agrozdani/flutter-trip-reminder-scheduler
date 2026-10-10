@@ -39,7 +39,7 @@ class ScheduledReminder {
   /// Confidence in [iana].
   final ZoneConfidence confidence;
 
-  /// What triggered the schedule that produced this reminder.
+  /// What triggered the most recent reconcile that produced this record.
   final RescheduleTrigger trigger;
 
   /// Owning trip id.
@@ -51,7 +51,8 @@ class ScheduledReminder {
   /// The wall-clock time the user asked for (for display/forensics).
   final ReminderTime wallClock;
 
-  /// When this reminder was scheduled.
+  /// When that reconcile ran. Every reconcile re-records an unchanged
+  /// reminder, so this can be later than when it was handed to the OS.
   final DateTime scheduledAtUtc;
 
   ScheduledReminder copyWith({

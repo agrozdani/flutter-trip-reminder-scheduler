@@ -16,7 +16,8 @@ class ReconciliationPlan {
   /// New or changed reminders that must be (re)scheduled with the OS.
   final List<ScheduledReminder> toSchedule;
 
-  /// Ids that are stale and must be cancelled.
+  /// Ids that are stale and must be cancelled. Reminders that have already
+  /// fired are never listed: nothing is left pending for them.
   final List<int> toCancel;
 
   /// Ids already scheduled with an identical fire instant; left untouched.

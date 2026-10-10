@@ -71,9 +71,11 @@ class ReminderScheduler {
 
     // The fire-time diff assumes the registry reflects what the OS actually has
     // pending. That holds for every trigger except [osCleared], where the OS
-    // wiped its pending set out from under us (typically a reboot). There we
-    // reconcile against an empty baseline so the whole desired set is treated
-    // as new, and clear any stragglers up front.
+    // reported nothing pending although the registry expected future
+    // reminders. There we reconcile against an empty baseline so the whole
+    // desired set is treated as new. That baseline also yields nothing to
+    // cancel, which is right: nothing is pending, and a blanket cancel-all
+    // would only dismiss notifications already delivered.
     final osCleared = trigger == RescheduleTrigger.osCleared;
     final baseline = osCleared ? ReminderRegistry.empty : registry;
 
@@ -85,12 +87,8 @@ class ReminderScheduler {
       lastKnownIana: registry.lastZoneId,
     );
 
-    if (osCleared) {
-      await _gateway.cancelAll();
-    } else {
-      for (final id in result.plan.toCancel) {
-        await _gateway.cancel(id);
-      }
+    for (final id in result.plan.toCancel) {
+      await _gateway.cancel(id);
     }
     for (final reminder in result.plan.toSchedule) {
       await _gateway.schedule(reminder,

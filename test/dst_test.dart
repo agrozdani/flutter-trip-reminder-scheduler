@@ -50,7 +50,7 @@ void main() {
   });
 
   group('sub-hour transition — Lord Howe Island shifts by 30 minutes', () {
-    // 2024-04-07 fall-back: AEDT(+11) -> AEST(+10:30); clocks go 02:00 -> 01:30,
+    // 2024-04-07 fall-back: +11 -> +10:30; clocks go 02:00 -> 01:30,
     // so only 01:30–01:59 are ambiguous, and 01:00–01:29 happen exactly once.
     test('a unique time just before the 30-min overlap is not shifted', () {
       final loc = tz.getLocation('Australia/Lord_Howe');
@@ -67,6 +67,19 @@ void main() {
       // 01:45 occurs at 14:45 UTC (+11) then 15:15 UTC (+10:30); pick the later.
       expect(result.toUtc(), DateTime.utc(2024, 4, 6, 15, 15));
       expect(result.timeZoneOffset, const Duration(hours: 10, minutes: 30));
+    });
+  });
+
+  group('multi-hour transition — Córdoba falls back two hours', () {
+    // 1991-03-03 02:00 UTC: -02 -> -04, so the wall times 22:00–23:59 on
+    // 1991-03-02 happen twice.
+    test('the first hour of a two-hour overlap takes the later occurrence', () {
+      final loc = tz.getLocation('America/Argentina/Cordoba');
+      final result = WallClock.toInstant(loc, 1991, 3, 2, 22, 30);
+      // 22:30 occurs at 00:30 UTC (-02) then 02:30 UTC (-04); pick the later.
+      // A probe a fixed hour ahead never reaches the transition from here.
+      expect(result.toUtc(), DateTime.utc(1991, 3, 3, 2, 30));
+      expect(result.timeZoneOffset, const Duration(hours: -4));
     });
   });
 
