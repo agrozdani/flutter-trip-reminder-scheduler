@@ -2,7 +2,7 @@
 
 ![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter&logoColor=white)
 ![Platforms](https://img.shields.io/badge/platforms-Android%20%7C%20iOS-555)
-![Tests](https://img.shields.io/badge/tests-61%20passing-3DA639)
+![Tests](https://img.shields.io/badge/tests-62%20passing-3DA639)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
 A reference implementation of **timezone-aware local notification scheduling** for
@@ -110,7 +110,7 @@ An **IANA timezone** (e.g. `America/New_York`, `Africa/Lagos`, `Asia/Kolkata`) i
 a fixed UTC offset — it's a *named set of rules* describing how a region's offset has
 changed over history, including when daylight saving starts and ends. `Europe/London`
 is UTC+0 in January and UTC+1 in July. `Asia/Kolkata` is a permanent UTC+05:30.
-`Pacific/Apia` sits east of the date line at UTC+13.
+`Pacific/Apia` sits west of the date line at UTC+13.
 
 Because the offset depends on the *instant*, you cannot reduce a zone to a number. The
 [`timezone`](https://pub.dev/packages/timezone) package ships the IANA database and a
@@ -457,7 +457,7 @@ Ordered from the most approachable to the most involved.
 flutter test
 ```
 
-The 61 tests need no device, radio, or network — fakes are injected through the ports,
+The 62 tests need no device, radio, or network — fakes are injected through the ports,
 platform channels are mocked, and scheduling time is controlled with `package:clock` /
 `fakeAsync`.
 
@@ -502,9 +502,12 @@ building on it:
   own before shipping.
 - **Check the exact-alarm permission against store policy.** Google Play allows
   `USE_EXACT_ALARM` only when an app's core function is an alarm/timer or a calendar.
-  If yours isn't, drop it and declare `SCHEDULE_EXACT_ALARM` for every API level (the
-  user can deny it; the bootstrap already calls `requestExactAlarmsPermission()`), or
-  schedule with an inexact `AndroidScheduleMode`.
+  If yours isn't, drop it and either declare `SCHEDULE_EXACT_ALARM` for every API level
+  or schedule with an inexact `AndroidScheduleMode`. `SCHEDULE_EXACT_ALARM` alone isn't
+  enough: Android 14+ no longer pre-grants it to most newly installed apps targeting
+  API 33+, and while it's denied the plugin rejects every `exactAllowWhileIdle`
+  schedule with `exact_alarms_not_permitted`. Check `canScheduleExactNotifications()`
+  before scheduling and fall back to `inexactAllowWhileIdle` when it returns false.
 - **Swap the adapters, keep the core.** Replace
   [`ManualLocationZoneSource`](lib/src/platform/manual_location_zone_source.dart) with a
   real GPS + reverse-geocoding implementation of `LocationZoneSource`; replace

@@ -102,6 +102,9 @@ void main() {
 
       expect(gateway.scheduled, hasLength(5),
           reason: 'osCleared forces a full resync');
+      expect(gateway.cancelled, isEmpty,
+          reason: 'nothing is pending, and a cancel would also dismiss '
+              'delivered notifications');
     }, initialTime: initialTime);
   });
 }

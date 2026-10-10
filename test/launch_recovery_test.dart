@@ -48,6 +48,26 @@ void main() {
     expect(t, RescheduleTrigger.osCleared);
   });
 
+  test('OS-cleared when only some reminders have fired', () {
+    // One reminder fired an hour ago; the other is still due. The OS listing
+    // nothing means it lost the future one.
+    final partlyFired = ReminderRegistry(
+      reminders: [
+        sample().copyWith(
+            id: 2, fireInstantUtc: now.subtract(const Duration(hours: 1))),
+        sample(),
+      ],
+      lastZoneId: 'America/New_York',
+      lastScheduleAtUtc: now.subtract(const Duration(hours: 2)),
+    );
+    final t = recovery.decide(
+      registry: partlyFired,
+      pendingIds: const [],
+      now: now,
+    );
+    expect(t, RescheduleTrigger.osCleared);
+  });
+
   test('OS-cleared outranks cold start and periodic (cleared after long idle)',
       () {
     for (final idle in const [Duration(hours: 7), Duration(days: 21)]) {
@@ -80,18 +100,18 @@ void main() {
     expect(t, RescheduleTrigger.coldStart);
   });
 
-  test('cold start when the last schedule is older than 6h', () {
+  test('cold start once the last schedule is 6h old', () {
     final t = recovery.decide(
-      registry: registry(lastScheduleAtUtc: now.subtract(const Duration(hours: 7))),
+      registry: registry(lastScheduleAtUtc: now.subtract(const Duration(hours: 6))),
       pendingIds: const [1], // still pending, so not OS-cleared
       now: now,
     );
     expect(t, RescheduleTrigger.coldStart);
   });
 
-  test('periodic rebalance after more than 20 days', () {
+  test('periodic rebalance once the last schedule is 20 days old', () {
     final t = recovery.decide(
-      registry: registry(lastScheduleAtUtc: now.subtract(const Duration(days: 21))),
+      registry: registry(lastScheduleAtUtc: now.subtract(const Duration(days: 20))),
       pendingIds: const [1],
       now: now,
     );

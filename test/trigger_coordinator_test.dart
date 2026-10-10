@@ -39,16 +39,24 @@ void main() {
   });
 
   test('an OS-cleared resync is never coalesced into another trigger', () {
-    fakeAsync((async) {
-      final runs = <RescheduleTrigger>[];
-      final c = RescheduleCoordinator(onReschedule: (t) async => runs.add(t));
+    // osCleared needs a full resync, so it must win whether it arrives before
+    // or after another high-priority trigger.
+    for (final burst in const [
+      [RescheduleTrigger.locationChanged, RescheduleTrigger.osCleared],
+      [RescheduleTrigger.osCleared, RescheduleTrigger.userEdit],
+    ]) {
+      fakeAsync((async) {
+        final runs = <RescheduleTrigger>[];
+        final c = RescheduleCoordinator(onReschedule: (t) async => runs.add(t));
 
-      c.request(RescheduleTrigger.locationChanged); // high
-      c.request(RescheduleTrigger.osCleared); // high, and needs a full resync
-      async.elapse(const Duration(milliseconds: 300));
+        for (final trigger in burst) {
+          c.request(trigger);
+        }
+        async.elapse(const Duration(milliseconds: 300));
 
-      expect(runs, [RescheduleTrigger.osCleared]);
-    });
+        expect(runs, [RescheduleTrigger.osCleared], reason: '$burst');
+      });
+    }
   });
 
   test('runs are serialized — a request arriving mid-run waits its turn', () {

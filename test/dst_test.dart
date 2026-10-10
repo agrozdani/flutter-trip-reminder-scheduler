@@ -50,7 +50,7 @@ void main() {
   });
 
   group('sub-hour transition — Lord Howe Island shifts by 30 minutes', () {
-    // 2024-04-07 fall-back: AEDT(+11) -> AEST(+10:30); clocks go 02:00 -> 01:30,
+    // 2024-04-07 fall-back: +11 -> +10:30; clocks go 02:00 -> 01:30,
     // so only 01:30–01:59 are ambiguous, and 01:00–01:29 happen exactly once.
     test('a unique time just before the 30-min overlap is not shifted', () {
       final loc = tz.getLocation('Australia/Lord_Howe');
