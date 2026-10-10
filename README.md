@@ -2,7 +2,7 @@
 
 ![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter&logoColor=white)
 ![Platforms](https://img.shields.io/badge/platforms-Android%20%7C%20iOS-555)
-![Tests](https://img.shields.io/badge/tests-62%20passing-3DA639)
+![Tests](https://img.shields.io/badge/tests-66%20passing-3DA639)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
 A reference implementation of **timezone-aware local notification scheduling** for
@@ -457,7 +457,7 @@ Ordered from the most approachable to the most involved.
 flutter test
 ```
 
-The 62 tests need no device, radio, or network — fakes are injected through the ports,
+The 66 tests need no device, radio, or network — fakes are injected through the ports,
 platform channels are mocked, and scheduling time is controlled with `package:clock` /
 `fakeAsync`.
 
@@ -485,9 +485,13 @@ platform channels are mocked, and scheduling time is controlled with `package:cl
   orchestrator end to end over fakes, including OS-cleared full resync.
 - [`notification_gateway_test.dart`](test/notification_gateway_test.dart) — the gateway
   hands the plugin a UTC wall time, so the platform can't re-resolve a fall-back
-  reminder to the other occurrence.
+  reminder to the other occurrence; a reminder that comes due mid-run is scheduled two
+  seconds out instead of aborting the run.
 - [`trip_form_screen_test.dart`](test/trip_form_screen_test.dart) — a double tap on
   *Save* adds the trip once and returns to the home shell.
+- [`home_shell_test.dart`](test/home_shell_test.dart) — a failed launch-time or
+  resume reschedule is reported rather than left unhandled, and the Upcoming view
+  still refreshes, as it does after a successful resume.
 - [`fired_reminders_provider_test.dart`](test/fired_reminders_provider_test.dart) — the
   Upcoming screen's "fired" badge state flips within a second of each fire instant,
   driven by a single re-armed timer rather than polling.
