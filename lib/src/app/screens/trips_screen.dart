@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/models/trip.dart';
+import '../report_error.dart';
 import '../trip_controller.dart';
 import 'trip_form_screen.dart';
 
@@ -70,8 +71,20 @@ class _TripTile extends ConsumerWidget {
       trailing: IconButton(
         icon: const Icon(Icons.delete_outline),
         tooltip: 'Delete',
-        onPressed: () =>
-            ref.read(tripsControllerProvider.notifier).removeTrip(trip.id),
+        onPressed: () async {
+          final messenger = ScaffoldMessenger.of(context);
+          try {
+            await ref
+                .read(tripsControllerProvider.notifier)
+                .removeTrip(trip.id);
+          } catch (error, stack) {
+            reportRescheduleError(error, stack, 'cancelling a deleted trip');
+            messenger.showSnackBar(const SnackBar(
+              content: Text(
+                  'Trip deleted, but its reminders could not be cancelled yet'),
+            ));
+          }
+        },
       ),
     );
   }

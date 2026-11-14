@@ -5,6 +5,7 @@ import '../../core/models/reminder_time.dart';
 import '../../core/models/trip.dart';
 import '../common_zones.dart';
 import '../providers.dart';
+import '../report_error.dart';
 import '../trip_controller.dart';
 
 /// Defines a trip: home zone, destination country, dates, daily reminder time,
@@ -127,12 +128,29 @@ class _TripFormScreenState extends ConsumerState<TripFormScreen> {
       preBufferDays: _preBuffer,
       postBufferDays: _postBuffer,
     );
-    await ref.read(tripsControllerProvider.notifier).addTrip(trip);
+    var message = 'Trip saved and reminders scheduled';
+    try {
+      await ref.read(tripsControllerProvider.notifier).addTrip(trip);
+    } catch (error, stack) {
+      reportRescheduleError(error, stack, 'scheduling a new trip');
+      final trips = ref.read(tripsControllerProvider).value ?? const <Trip>[];
+      if (!trips.any((t) => t.id == trip.id)) {
+        // The trip itself wasn't saved; let the user try again.
+        if (!mounted) return;
+        setState(() => _saving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('The trip could not be saved')),
+        );
+        return;
+      }
+      // Saved but not scheduled. Staying on the form would invite a second
+      // copy of the trip; the next reschedule picks this one up.
+      message = 'Trip saved, but its reminders could not be scheduled';
+    }
     if (!mounted) return;
     Navigator.of(context).pop();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Trip saved and reminders scheduled')),
-    );
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 }
 

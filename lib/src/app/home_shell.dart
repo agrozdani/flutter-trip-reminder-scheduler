@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/models/reschedule_trigger.dart';
 import 'providers.dart';
+import 'report_error.dart';
 import 'screens/simulate_screen.dart';
 import 'screens/trips_screen.dart';
 import 'screens/upcoming_reminders_screen.dart';
@@ -73,12 +74,7 @@ class _HomeShellState extends ConsumerState<HomeShell>
     try {
       await reschedule();
     } catch (error, stack) {
-      FlutterError.reportError(FlutterErrorDetails(
-        exception: error,
-        stack: stack,
-        library: 'trip_reminder_scheduler',
-        context: ErrorDescription('while $activity'),
-      ));
+      reportRescheduleError(error, stack, activity);
     }
     if (mounted) ref.invalidate(upcomingRemindersProvider);
   }

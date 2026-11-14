@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/models/reschedule_trigger.dart';
 import '../common_zones.dart';
 import '../providers.dart';
+import '../report_error.dart';
 import '../trip_controller.dart';
 
 /// The debug seam, surfaced as UI. Because a simulator can't change real GPS or
@@ -21,7 +22,12 @@ class _SimulateScreenState extends ConsumerState<SimulateScreen> {
   String _device = 'Europe/Paris';
 
   Future<void> _reschedule(RescheduleTrigger trigger, String message) async {
-    await ref.read(tripsControllerProvider.notifier).reschedule(trigger);
+    try {
+      await ref.read(tripsControllerProvider.notifier).reschedule(trigger);
+    } catch (error, stack) {
+      reportRescheduleError(error, stack, 'rescheduling (${trigger.name})');
+      message = 'Reschedule failed';
+    }
     if (!mounted) return;
     setState(() {});
     ScaffoldMessenger.of(context)
