@@ -21,9 +21,10 @@ void main() {
   // The app over fakes, opened on the trip form with Save scrolled into view.
   Future<SharedPreferences> pumpForm(
     WidgetTester tester,
-    NotificationGateway gateway,
-  ) async {
-    SharedPreferences.setMockInitialValues({});
+    NotificationGateway gateway, {
+    Map<String, Object> stored = const {},
+  }) async {
+    SharedPreferences.setMockInitialValues(stored);
     final prefs = await SharedPreferences.getInstance();
     await tester.pumpWidget(ProviderScope(
       overrides: [
@@ -142,6 +143,32 @@ void main() {
     expect(reported.single.exception, isA<PlatformException>());
     expect(find.byType(HomeShell), findsOneWidget);
     expect(find.textContaining('could not be scheduled'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('a trip added over unreadable stored trips is not saved',
+      (tester) async {
+    final reported = <FlutterErrorDetails>[];
+    final onError = FlutterError.onError;
+    FlutterError.onError = reported.add;
+    late SharedPreferences prefs;
+    try {
+      prefs = await pumpForm(tester, FakeNotificationGateway(),
+          stored: {'trips_v1': 'not json'});
+      await tester.tap(find.text('Save & schedule'));
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pumpAndSettle();
+    } finally {
+      FlutterError.onError = onError;
+    }
+
+    // Launch recovery and the save both report the unreadable trips.
+    expect(reported, hasLength(2));
+    expect(find.byType(TripFormScreen), findsOneWidget,
+        reason: 'stays open, Save enabled again, nothing overwritten');
+    expect(find.text('The trip could not be saved'), findsOneWidget);
+    expect(prefs.getString('trips_v1'), 'not json');
 
     await tester.pumpWidget(const SizedBox());
   });

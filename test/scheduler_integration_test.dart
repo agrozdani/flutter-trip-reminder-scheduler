@@ -173,6 +173,26 @@ void main() {
     }, initialTime: initialTime);
   });
 
+  test('trips that can\'t be read cancel nothing', () {
+    fakeAsync((async) {
+      final gateway = FakeNotificationGateway();
+      final store = InMemoryRegistryStore();
+      scheduleInEarlierProcess(async, gateway, store);
+      final before = store.current;
+
+      Object? error;
+      build(gateway, store, trips: () => throw const FormatException('unreadable'))
+          .request(RescheduleTrigger.userEdit)
+          .catchError((Object e) => error = e);
+      async.elapse(const Duration(milliseconds: 300));
+
+      expect(error, isA<FormatException>());
+      expect(gateway.cancelled, isEmpty);
+      expect(gateway.scheduled, isEmpty);
+      expect(store.current, same(before), reason: 'the registry is kept');
+    }, initialTime: initialTime);
+  });
+
   test('a failed first run leaves the hand-over owed to the next run', () {
     fakeAsync((async) {
       final gateway = _FailsOnceGateway();

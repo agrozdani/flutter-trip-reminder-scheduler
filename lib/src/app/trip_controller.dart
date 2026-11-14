@@ -13,8 +13,13 @@ import 'providers.dart';
 /// A mutation's future fails if its reschedule does. By then the trips are
 /// already persisted and in [state], and the next successful reschedule brings
 /// the schedule back in line with them.
-final tripsControllerProvider =
-    AsyncNotifierProvider<TripsController, List<Trip>>(TripsController.new);
+///
+/// A failed load is not retried: stored trips that can't be read won't become
+/// readable, and while a retry is pending every mutation waits on [future].
+final tripsControllerProvider = AsyncNotifierProvider<TripsController, List<Trip>>(
+  TripsController.new,
+  retry: (_, _) => null,
+);
 
 class TripsController extends AsyncNotifier<List<Trip>> {
   @override

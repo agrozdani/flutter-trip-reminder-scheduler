@@ -15,17 +15,16 @@ class PrefsTripStore {
   final SharedPreferences _prefs;
   final String key;
 
+  /// Throws if the stored trips can't be read, rather than reporting none:
+  /// the next save would then overwrite them, and the next reschedule would
+  /// cancel their reminders. Failing leaves the stored copy as it was.
   Future<List<Trip>> load() async {
     final raw = _prefs.getString(key);
     if (raw == null) return const [];
-    try {
-      final list = jsonDecode(raw) as List<dynamic>;
-      return list
-          .map((e) => Trip.fromJson(e as Map<String, dynamic>))
-          .toList();
-    } catch (_) {
-      return const [];
-    }
+    final list = jsonDecode(raw) as List<dynamic>;
+    return list
+        .map((e) => Trip.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 
   Future<void> save(List<Trip> trips) async {

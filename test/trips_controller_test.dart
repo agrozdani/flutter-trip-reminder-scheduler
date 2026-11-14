@@ -18,13 +18,13 @@ void main() {
   setUpAll(tzdata.initializeTimeZones);
 
   Trip trip(String id) => Trip(
-    id: id,
-    homeIana: 'UTC',
-    destinationCountry: 'United Kingdom',
-    startDate: DateTime.utc(2024, 6, 12),
-    endDate: DateTime.utc(2024, 6, 12),
-    reminderTime: const ReminderTime(9, 0),
-  );
+        id: id,
+        homeIana: 'UTC',
+        destinationCountry: 'United Kingdom',
+        startDate: DateTime.utc(2024, 6, 12),
+        endDate: DateTime.utc(2024, 6, 12),
+        reminderTime: const ReminderTime(9, 0),
+      );
 
   test('a change made before the stored trips have loaded keeps them', () {
     fakeAsync((async) {
@@ -35,16 +35,14 @@ void main() {
       SharedPreferences.getInstance().then((p) => prefs = p);
       async.flushMicrotasks();
 
-      final container = ProviderContainer(
-        overrides: [
-          sharedPreferencesProvider.overrideWithValue(prefs),
-          gatewayProvider.overrideWithValue(FakeNotificationGateway()),
-          registryStoreProvider.overrideWithValue(InMemoryRegistryStore()),
-          deviceTimezoneSourceProvider.overrideWithValue(
-            OverridableDeviceTimezoneSource(FakeDeviceTimezoneSource('UTC')),
-          ),
-        ],
-      );
+      final container = ProviderContainer(overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        gatewayProvider.overrideWithValue(FakeNotificationGateway()),
+        registryStoreProvider.overrideWithValue(InMemoryRegistryStore()),
+        deviceTimezoneSourceProvider.overrideWithValue(
+          OverridableDeviceTimezoneSource(FakeDeviceTimezoneSource('UTC')),
+        ),
+      ]);
 
       // First touch of the controller: its load is still in flight.
       container.read(tripsControllerProvider.notifier).addTrip(trip('new'));
@@ -62,25 +60,21 @@ void main() {
   test('two deletes close together both stick', () {
     fakeAsync((async) {
       SharedPreferences.setMockInitialValues({
-        'trips_v1': jsonEncode([
-          for (final id in ['a', 'b', 'c']) trip(id).toJson(),
-        ]),
+        'trips_v1': jsonEncode([for (final id in ['a', 'b', 'c']) trip(id).toJson()]),
       });
       late SharedPreferences prefs;
       SharedPreferences.getInstance().then((p) => prefs = p);
       async.flushMicrotasks();
 
-      final container = ProviderContainer(
-        overrides: [
-          sharedPreferencesProvider.overrideWithValue(prefs),
-          tripStoreProvider.overrideWithValue(_SlowTripStore(prefs)),
-          gatewayProvider.overrideWithValue(FakeNotificationGateway()),
-          registryStoreProvider.overrideWithValue(InMemoryRegistryStore()),
-          deviceTimezoneSourceProvider.overrideWithValue(
-            OverridableDeviceTimezoneSource(FakeDeviceTimezoneSource('UTC')),
-          ),
-        ],
-      );
+      final container = ProviderContainer(overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        tripStoreProvider.overrideWithValue(_SlowTripStore(prefs)),
+        gatewayProvider.overrideWithValue(FakeNotificationGateway()),
+        registryStoreProvider.overrideWithValue(InMemoryRegistryStore()),
+        deviceTimezoneSourceProvider.overrideWithValue(
+          OverridableDeviceTimezoneSource(FakeDeviceTimezoneSource('UTC')),
+        ),
+      ]);
       final controller = container.read(tripsControllerProvider.notifier);
       async.elapse(const Duration(seconds: 1)); // the stored trips have loaded
 
@@ -94,12 +88,53 @@ void main() {
       PrefsTripStore(prefs).load().then((t) => stored = t);
       async.flushMicrotasks();
       expect(stored.map((t) => t.id), ['c']);
-      expect(container.read(tripsControllerProvider).value!.map((t) => t.id), [
-        'c',
-      ]);
+      expect(container.read(tripsControllerProvider).value!.map((t) => t.id), ['c']);
 
       container.dispose();
     }, initialTime: DateTime.utc(2024, 1, 1));
+  });
+
+  // Unreadable as a whole, and readable except for one trip.
+  final unreadable = {
+    'invalid JSON': 'not json',
+    'one bad trip': jsonEncode([
+      trip('kept').toJson(),
+      {...trip('bad').toJson()}..remove('homeIana'),
+    ]),
+  };
+  unreadable.forEach((label, raw) {
+    test('stored trips that can\'t be read are never saved over ($label)', () {
+      fakeAsync((async) {
+        SharedPreferences.setMockInitialValues({'trips_v1': raw});
+        late SharedPreferences prefs;
+        SharedPreferences.getInstance().then((p) => prefs = p);
+        async.flushMicrotasks();
+
+        final container = ProviderContainer(overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          gatewayProvider.overrideWithValue(FakeNotificationGateway()),
+          registryStoreProvider.overrideWithValue(InMemoryRegistryStore()),
+          deviceTimezoneSourceProvider.overrideWithValue(
+            OverridableDeviceTimezoneSource(FakeDeviceTimezoneSource('UTC')),
+          ),
+        ]);
+        final controller = container.read(tripsControllerProvider.notifier);
+        async.elapse(const Duration(seconds: 1));
+        expect(container.read(tripsControllerProvider).hasError, isTrue,
+            reason: 'reported, not shown as no trips');
+
+        // Both fail promptly rather than waiting on a retried load.
+        final errors = <Object>[];
+        controller.addTrip(trip('new')).catchError(errors.add);
+        controller.removeTrip('kept').catchError(errors.add);
+        async.elapse(const Duration(seconds: 1));
+
+        expect(errors, hasLength(2));
+        expect(prefs.getString('trips_v1'), raw, reason: 'left as it was');
+
+        container.dispose();
+      }, initialTime: DateTime.utc(2024, 1, 1));
+    });
   });
 }
 
