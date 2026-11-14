@@ -20,21 +20,29 @@ class TripsController extends AsyncNotifier<List<Trip>> {
   @override
   Future<List<Trip>> build() => ref.read(tripStoreProvider).load();
 
-  // Both mutations wait for the stored trips first: starting from an empty
-  // list while the load is still in flight would save over them.
-  Future<void> addTrip(Trip trip) async {
-    final current = await future;
-    await _commit([...current, trip]);
-  }
+  Future<void> addTrip(Trip trip) => _mutate((current) => [...current, trip]);
 
-  Future<void> removeTrip(String id) async {
-    final current = await future;
-    await _commit(current.where((t) => t.id != id).toList());
-  }
+  Future<void> removeTrip(String id) =>
+      _mutate((current) => current.where((t) => t.id != id).toList());
 
-  Future<void> _commit(List<Trip> trips) async {
-    await ref.read(tripStoreProvider).save(trips);
-    state = AsyncData(trips);
+  /// The end of the queue of saves, which never completes with an error.
+  Future<void> _saves = Future<void>.value();
+
+  /// Applies [change] to the trips, persists them, then reschedules.
+  ///
+  /// Saves run one at a time, each starting from the trips the previous one
+  /// left: two that overlapped would start from the same list, and the later
+  /// save would bring back a trip the earlier one removed. The first also waits
+  /// for the stored trips, rather than starting from an empty list while the
+  /// load is still in flight and saving over them.
+  Future<void> _mutate(List<Trip> Function(List<Trip> current) change) async {
+    final saved = _saves.then((_) async {
+      final trips = change(await future);
+      await ref.read(tripStoreProvider).save(trips);
+      state = AsyncData(trips);
+    });
+    _saves = saved.catchError((Object _) {});
+    await saved;
     await reschedule(RescheduleTrigger.userEdit);
   }
 

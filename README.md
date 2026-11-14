@@ -2,7 +2,7 @@
 
 ![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter&logoColor=white)
 ![Platforms](https://img.shields.io/badge/platforms-Android%20%7C%20iOS-555)
-![Tests](https://img.shields.io/badge/tests-74%20passing-3DA639)
+![Tests](https://img.shields.io/badge/tests-75%20passing-3DA639)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
 A reference implementation of **timezone-aware local notification scheduling** for
@@ -463,7 +463,7 @@ Ordered from the most approachable to the most involved.
 flutter test
 ```
 
-The 74 tests need no device, radio, or network — fakes are injected through the ports,
+The 75 tests need no device, radio, or network — fakes are injected through the ports,
 platform channels are mocked, and scheduling time is controlled with `package:clock` /
 `fakeAsync`.
 
@@ -501,7 +501,8 @@ platform channels are mocked, and scheduling time is controlled with `package:cl
   closes the form, and says the reminders weren't scheduled; *Back* is held while a
   save is in flight, so it can't pop the home shell or lose that message.
 - [`trips_controller_test.dart`](test/trips_controller_test.dart) — a trip added
-  before the stored trips have loaded is appended to them, not saved over them.
+  before the stored trips have loaded is appended to them, not saved over them; two
+  deletes close together both stick.
 - [`home_shell_test.dart`](test/home_shell_test.dart) — a failed launch-time or
   resume reschedule is reported rather than left unhandled, and the Upcoming view
   still refreshes, as it does after a successful resume.
