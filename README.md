@@ -2,7 +2,7 @@
 
 ![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter&logoColor=white)
 ![Platforms](https://img.shields.io/badge/platforms-Android%20%7C%20iOS-555)
-![Tests](https://img.shields.io/badge/tests-66%20passing-3DA639)
+![Tests](https://img.shields.io/badge/tests-69%20passing-3DA639)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
 A reference implementation of **timezone-aware local notification scheduling** for
@@ -239,7 +239,7 @@ sequenceDiagram
     Co->>Sch: _perform(trigger)
     Sch->>St: load persisted registry
     Sch->>En: reconcile(registry, trips, now)
-    Note over En: build candidates → sort →<br/>micro-offset collisions → cap 64 → diff
+    Note over En: build each trip's days → sort →<br/>micro-offset collisions → drop the past → cap 64 → diff
     En-->>Sch: plan{ toSchedule, toCancel, unchanged } + new registry
     Sch->>Ga: cancel(stale ids)
     Sch->>Ga: schedule(new / changed)
@@ -368,6 +368,7 @@ untouched. These tests are the actual proof of correctness — see
 | **iOS caps pending local notifications at ~64.** | The engine caps the desired set at 64, soonest-first ([`schedule_engine.dart`](lib/src/core/schedule_engine.dart)), and launch-time recovery periodically replenishes the queue. |
 | **Android 12+ gates exact alarms.** | The manifest declares `SCHEDULE_EXACT_ALARM` (≤ API 32) and `USE_EXACT_ALARM` (33+); the bootstrap requests the permission, and scheduling uses `AndroidScheduleMode.exactAllowWhileIdle` ([`flutter_notification_gateway.dart`](lib/src/platform/flutter_notification_gateway.dart)). Google Play restricts `USE_EXACT_ALARM` — see [Adapting it for your own app](#adapting-it-for-your-own-app). |
 | **Android clears scheduled alarms on reboot.** | `RECEIVE_BOOT_COMPLETED` + the plugin's boot receiver re-arm them from the plugin's own saved copy. Independently, [`launch_recovery.dart`](lib/src/core/launch_recovery.dart) resyncs whenever the registry still expects future reminders but the OS reports none pending. |
+| **Android's pending list is the plugin's record, not the OS's.** | iOS reports what the notification center actually holds; on Android the plugin answers from that same saved copy, since `AlarmManager` can't be queried. So the OS-cleared check only sees a loss the plugin knows about. A force-stop clears the alarms and leaves the copy intact: Android 15+ re-sends `BOOT_COMPLETED` when the app is next opened and the boot receiver re-arms them, but on Android 14 and older nothing does until a reboot or app update. This implementation does not close that gap — see [Adapting it for your own app](#adapting-it-for-your-own-app). |
 | **Cancelling also dismisses.** | The plugin's `cancel` removes a delivered notification as well as a pending one, so reconciliation never cancels a reminder whose instant has passed; it just drops it from the registry. |
 | **`flutter_local_notifications` uses `java.time`.** | Core-library desugaring is enabled in [`android/app/build.gradle.kts`](android/app/build.gradle.kts), without which the Android build fails. |
 | **Apps sit idle for days, across DST.** | Launch recovery distinguishes cold start (≥ 6 h), periodic replenish (≥ 20 days), and a DST shift (stored zone's offset differs now). |
@@ -457,7 +458,7 @@ Ordered from the most approachable to the most involved.
 flutter test
 ```
 
-The 66 tests need no device, radio, or network — fakes are injected through the ports,
+The 69 tests need no device, radio, or network — fakes are injected through the ports,
 platform channels are mocked, and scheduling time is controlled with `package:clock` /
 `fakeAsync`.
 
@@ -473,8 +474,9 @@ platform channels are mocked, and scheduling time is controlled with `package:cl
   destination vs. today-override, with "today" taken as the home-zone date.
 - [`reconciliation_test.dart`](test/reconciliation_test.dart) — no duplicates on re-run,
   exact-id reschedule on edit, exact-id cancel on removal, an already-fired reminder
-  pruned without a cancel, the cap (soonest first, across trips), collision spacing,
-  and no patterned id collisions across trips.
+  pruned without a cancel, the cap (soonest first, across trips), collision spacing
+  (including a run that lands between two spaced reminders leaving the later one
+  alone), and no patterned id collisions across trips.
 - [`trigger_coordinator_test.dart`](test/trigger_coordinator_test.dart) — debounce,
   serialize (a mid-run request waits its turn), dedup, high-priority bypass, an
   OS-cleared resync never coalesced away, and recovery from a failed run.
@@ -488,7 +490,10 @@ platform channels are mocked, and scheduling time is controlled with `package:cl
   reminder to the other occurrence; a reminder that comes due mid-run is scheduled two
   seconds out instead of aborting the run.
 - [`trip_form_screen_test.dart`](test/trip_form_screen_test.dart) — a double tap on
-  *Save* adds the trip once and returns to the home shell.
+  *Save* adds the trip once and returns to the home shell; a failed reschedule still
+  closes the form, and says the reminders weren't scheduled.
+- [`trips_controller_test.dart`](test/trips_controller_test.dart) — a trip added
+  before the stored trips have loaded is appended to them, not saved over them.
 - [`home_shell_test.dart`](test/home_shell_test.dart) — a failed launch-time or
   resume reschedule is reported rather than left unhandled, and the Upcoming view
   still refreshes, as it does after a successful resume.
@@ -512,6 +517,12 @@ building on it:
   API 33+, and while it's denied the plugin rejects every `exactAllowWhileIdle`
   schedule with `exact_alarms_not_permitted`. Check `canScheduleExactNotifications()`
   before scheduling and fall back to `inexactAllowWhileIdle` when it returns false.
+- **Decide how to survive a force-stop on Android 14 and older.** The alarms are
+  gone, the plugin still lists them as pending, and the diff sees nothing to change
+  (see [Platform realities](#platform-realities)). The simplest cure is to hand the
+  whole desired set back to the OS on the first reschedule of every process — the
+  ids are deterministic, so that overwrites rather than duplicates — at the cost of
+  up to 64 plugin calls per launch.
 - **Swap the adapters, keep the core.** Replace
   [`ManualLocationZoneSource`](lib/src/platform/manual_location_zone_source.dart) with a
   real GPS + reverse-geocoding implementation of `LocationZoneSource`; replace
