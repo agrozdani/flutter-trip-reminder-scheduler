@@ -90,16 +90,78 @@ void main() {
 
     await tester.pumpWidget(const SizedBox());
   });
+
+  testWidgets('Back waits for a save in flight instead of racing it',
+      (tester) async {
+    final prefs = await pumpForm(tester, FakeNotificationGateway());
+
+    // Back lands while the save is awaiting the debounced reschedule. Were the
+    // form to start closing now, the save's own pop a moment later would take
+    // the home shell with it.
+    await tester.tap(find.text('Save & schedule'));
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pageBack();
+    await tester.pump();
+    expect(find.byType(TripFormScreen), findsOneWidget,
+        reason: 'Back is held until the save has finished');
+
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
+    expect(find.byType(TripFormScreen), findsNothing);
+    expect(find.byType(HomeShell), findsOneWidget);
+    expect(await PrefsTripStore(prefs).load(), hasLength(1));
+
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('Back during a save that then fails still ends with the message',
+      (tester) async {
+    await pumpForm(
+      tester,
+      _RejectingGateway(after: const Duration(seconds: 2)),
+    );
+
+    final reported = <FlutterErrorDetails>[];
+    final onError = FlutterError.onError;
+    FlutterError.onError = reported.add;
+    try {
+      await tester.tap(find.text('Save & schedule'));
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pageBack();
+      // Frame by frame, so a Back that got through would finish its exit
+      // transition and dispose the form well before the reschedule fails.
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 3));
+      await tester.pumpAndSettle();
+    } finally {
+      FlutterError.onError = onError;
+    }
+
+    expect(reported.single.exception, isA<PlatformException>());
+    expect(find.byType(HomeShell), findsOneWidget);
+    expect(find.textContaining('could not be scheduled'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox());
+  });
 }
 
 /// A gateway whose OS rejects every schedule, as Android does while the
-/// exact-alarm permission is denied.
+/// exact-alarm permission is denied — optionally only [after] a delay.
 class _RejectingGateway extends FakeNotificationGateway {
+  _RejectingGateway({this.after = Duration.zero});
+
+  final Duration after;
+
   @override
   Future<void> schedule(
     ScheduledReminder reminder, {
     required String title,
     required String body,
   }) =>
-      Future.error(PlatformException(code: 'exact_alarms_not_permitted'));
+      Future.delayed(
+        after,
+        () => throw PlatformException(code: 'exact_alarms_not_permitted'),
+      );
 }

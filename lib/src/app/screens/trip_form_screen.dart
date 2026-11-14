@@ -36,8 +36,15 @@ class _TripFormScreenState extends ConsumerState<TripFormScreen> {
     _end = _start.add(const Duration(days: 5));
   }
 
+  // Back is held while a save is in flight. The save pops this route itself
+  // when it finishes; a Back that started closing the form first would turn
+  // that into a pop of the home shell underneath, and would dispose the form
+  // before it could say how the save went.
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      PopScope(canPop: !_saving, child: _buildForm(context));
+
+  Widget _buildForm(BuildContext context) {
     final countries = ref.read(countryZoneMapProvider).countries;
     _country ??= countries.first;
 
@@ -133,10 +140,10 @@ class _TripFormScreenState extends ConsumerState<TripFormScreen> {
       await ref.read(tripsControllerProvider.notifier).addTrip(trip);
     } catch (error, stack) {
       reportRescheduleError(error, stack, 'scheduling a new trip');
+      if (!mounted) return; // `ref` is unusable once the form is gone
       final trips = ref.read(tripsControllerProvider).value ?? const <Trip>[];
       if (!trips.any((t) => t.id == trip.id)) {
         // The trip itself wasn't saved; let the user try again.
-        if (!mounted) return;
         setState(() => _saving = false);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('The trip could not be saved')),
