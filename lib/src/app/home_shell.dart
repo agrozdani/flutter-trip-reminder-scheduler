@@ -10,11 +10,11 @@ import 'screens/simulate_screen.dart';
 import 'screens/trips_screen.dart';
 import 'screens/upcoming_reminders_screen.dart';
 
-/// Three-tab shell. On first build it runs launch-time recovery so a lost
-/// pending set, long absence, or DST shift while the app was closed is
-/// reconciled before the user does anything; thereafter every return to the
-/// foreground funnels an [RescheduleTrigger.appResume] through the same
-/// coordinator.
+/// Three-tab shell. On first build it runs the launch-time reschedule, so a
+/// lost pending set, long absence, or DST shift while the app was closed is
+/// reconciled, and the whole schedule handed back to the OS, before the user
+/// does anything; thereafter every return to the foreground funnels an
+/// [RescheduleTrigger.appResume] through the same coordinator.
 class HomeShell extends ConsumerStatefulWidget {
   const HomeShell({super.key});
 

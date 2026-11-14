@@ -3,13 +3,15 @@ import 'package:timezone/timezone.dart' as tz;
 import 'models/reminder_registry.dart';
 import 'models/reschedule_trigger.dart';
 
-/// Decides whether — and why — to reschedule when the app launches.
+/// Finds the reason, if there is one, to reschedule when the app launches.
 ///
 /// Local notifications are fragile: the platform can lose pending ones while
 /// the registry survives, the app can sit closed across a DST change, and a
 /// long-dormant queue drains as reminders fire. This pure function inspects the
 /// persisted registry against what the OS still has pending and returns the
-/// trigger to run, or null when the schedule is still fresh and intact.
+/// trigger to run, or null when the schedule looks fresh and intact. (The
+/// caller reschedules at launch either way; null only means there is no
+/// recovery reason to run it under.)
 ///
 /// Note: unlike the source app — whose cold-start check (≥6h) shadowed its
 /// periodic check (≥20d), making the latter unreachable at launch — the

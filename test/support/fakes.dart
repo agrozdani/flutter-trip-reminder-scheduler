@@ -99,6 +99,9 @@ class InMemoryRegistryStore implements RegistryStore {
 
   ReminderRegistry _registry;
 
+  /// The registry as last saved.
+  ReminderRegistry get current => _registry;
+
   @override
   Future<ReminderRegistry> load() async => _registry;
 

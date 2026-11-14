@@ -2,7 +2,7 @@
 
 ![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter&logoColor=white)
 ![Platforms](https://img.shields.io/badge/platforms-Android%20%7C%20iOS-555)
-![Tests](https://img.shields.io/badge/tests-69%20passing-3DA639)
+![Tests](https://img.shields.io/badge/tests-72%20passing-3DA639)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
 A reference implementation of **timezone-aware local notification scheduling** for
@@ -242,7 +242,7 @@ sequenceDiagram
     Note over En: build each trip's days → sort →<br/>micro-offset collisions → drop the past → cap 64 → diff
     En-->>Sch: plan{ toSchedule, toCancel, unchanged } + new registry
     Sch->>Ga: cancel(stale ids)
-    Sch->>Ga: schedule(new / changed)
+    Sch->>Ga: schedule(new / changed, or all on a process's first run)
     Sch->>St: save(new registry)
 ```
 
@@ -337,6 +337,9 @@ untouched. These tests are the actual proof of correctness — see
 - **Explicit diff vs. reschedule-everything.** The diff is more code than "cancel all,
   add all," and it must keep the registry honest about what the OS holds (see the
   OS-cleared path). In return you get idempotence and far fewer redundant OS calls.
+  The one deliberate exception is a process's first run, which hands over the whole
+  set (up to 64 calls): a loss the OS can't report can only be healed by asking
+  again.
 - **Country → single representative zone.** The demo map returns one primary zone per
   country and lowers confidence for multi-zone ones, rather than asking the user to
   disambiguate. A production app would refine by region/state (and say so).
@@ -354,7 +357,9 @@ untouched. These tests are the actual proof of correctness — see
   schedule, not what it still holds. If the OS loses its pending set while the registry
   survives, a plain diff would conclude "nothing changed" and reschedule nothing. The
   OS-cleared path detects this (the registry still expects future reminders, the OS
-  reports zero pending) and forces a full resync.
+  reports zero pending) and forces a full resync. Where the OS can't report a loss at
+  all (see [Platform realities](#platform-realities)), the first run of each process
+  resyncs unasked.
 - **Believing the simulator.** An iOS simulator / Android emulator **cannot change the
   device clock or timezone**, so you cannot reproduce a real DST crossing by hand. That
   is exactly why the DST math is a pure function with unit tests, and why the app has a
@@ -368,7 +373,7 @@ untouched. These tests are the actual proof of correctness — see
 | **iOS caps pending local notifications at ~64.** | The engine caps the desired set at 64, soonest-first ([`schedule_engine.dart`](lib/src/core/schedule_engine.dart)), and launch-time recovery periodically replenishes the queue. |
 | **Android 12+ gates exact alarms.** | The manifest declares `SCHEDULE_EXACT_ALARM` (≤ API 32) and `USE_EXACT_ALARM` (33+); the bootstrap requests the permission, and scheduling uses `AndroidScheduleMode.exactAllowWhileIdle` ([`flutter_notification_gateway.dart`](lib/src/platform/flutter_notification_gateway.dart)). Google Play restricts `USE_EXACT_ALARM` — see [Adapting it for your own app](#adapting-it-for-your-own-app). |
 | **Android clears scheduled alarms on reboot.** | `RECEIVE_BOOT_COMPLETED` + the plugin's boot receiver re-arm them from the plugin's own saved copy. Independently, [`launch_recovery.dart`](lib/src/core/launch_recovery.dart) resyncs whenever the registry still expects future reminders but the OS reports none pending. |
-| **Android's pending list is the plugin's record, not the OS's.** | iOS reports what the notification center actually holds; on Android the plugin answers from that same saved copy, since `AlarmManager` can't be queried. So the OS-cleared check only sees a loss the plugin knows about. A force-stop clears the alarms and leaves the copy intact: Android 15+ re-sends `BOOT_COMPLETED` when the app is next opened and the boot receiver re-arms them, but on Android 14 and older nothing does until a reboot or app update. This implementation does not close that gap — see [Adapting it for your own app](#adapting-it-for-your-own-app). |
+| **Android's pending list is the plugin's record, not the OS's.** | iOS reports what the notification center actually holds; on Android the plugin answers from that same saved copy, since `AlarmManager` can't be queried. So the OS-cleared check only sees a loss the plugin knows about. A force-stop clears the alarms and leaves the copy intact: Android 15+ re-sends `BOOT_COMPLETED` when the app is next opened and the boot receiver re-arms them, but on Android 14 and older nothing does. So the first reschedule of every process hands the whole desired set back to the OS rather than only the diff, and every launch runs one ([`reminder_scheduler.dart`](lib/src/app/reminder_scheduler.dart)). Ids are deterministic, so that overwrites what survived instead of duplicating it. |
 | **Cancelling also dismisses.** | The plugin's `cancel` removes a delivered notification as well as a pending one, so reconciliation never cancels a reminder whose instant has passed; it just drops it from the registry. |
 | **`flutter_local_notifications` uses `java.time`.** | Core-library desugaring is enabled in [`android/app/build.gradle.kts`](android/app/build.gradle.kts), without which the Android build fails. |
 | **Apps sit idle for days, across DST.** | Launch recovery distinguishes cold start (≥ 6 h), periodic replenish (≥ 20 days), and a DST shift (stored zone's offset differs now). |
@@ -458,7 +463,7 @@ Ordered from the most approachable to the most involved.
 flutter test
 ```
 
-The 69 tests need no device, radio, or network — fakes are injected through the ports,
+The 72 tests need no device, radio, or network — fakes are injected through the ports,
 platform channels are mocked, and scheduling time is controlled with `package:clock` /
 `fakeAsync`.
 
@@ -484,7 +489,9 @@ platform channels are mocked, and scheduling time is controlled with `package:cl
   the idle-time checks, but not when every reminder has simply fired), cold start,
   periodic, DST-shift detection.
 - [`scheduler_integration_test.dart`](test/scheduler_integration_test.dart) — the
-  orchestrator end to end over fakes, including OS-cleared full resync.
+  orchestrator end to end over fakes, including OS-cleared full resync and a new
+  process's first run: it hands back every reminder even when nothing looks wrong,
+  still cancels what is no longer wanted, and is owed again if it fails.
 - [`notification_gateway_test.dart`](test/notification_gateway_test.dart) — the gateway
   hands the plugin a UTC wall time, so the platform can't re-resolve a fall-back
   reminder to the other occurrence; a reminder that comes due mid-run is scheduled two
@@ -517,12 +524,6 @@ building on it:
   API 33+, and while it's denied the plugin rejects every `exactAllowWhileIdle`
   schedule with `exact_alarms_not_permitted`. Check `canScheduleExactNotifications()`
   before scheduling and fall back to `inexactAllowWhileIdle` when it returns false.
-- **Decide how to survive a force-stop on Android 14 and older.** The alarms are
-  gone, the plugin still lists them as pending, and the diff sees nothing to change
-  (see [Platform realities](#platform-realities)). The simplest cure is to hand the
-  whole desired set back to the OS on the first reschedule of every process — the
-  ids are deterministic, so that overwrites rather than duplicates — at the cost of
-  up to 64 plugin calls per launch.
 - **Swap the adapters, keep the core.** Replace
   [`ManualLocationZoneSource`](lib/src/platform/manual_location_zone_source.dart) with a
   real GPS + reverse-geocoding implementation of `LocationZoneSource`; replace

@@ -4,6 +4,7 @@ import 'package:timezone/data/latest_all.dart' as tzdata;
 import 'package:trip_reminder_scheduler/src/app/reminder_scheduler.dart';
 import 'package:trip_reminder_scheduler/src/core/models/reminder_time.dart';
 import 'package:trip_reminder_scheduler/src/core/models/reschedule_trigger.dart';
+import 'package:trip_reminder_scheduler/src/core/models/scheduled_reminder.dart';
 import 'package:trip_reminder_scheduler/src/core/models/trip.dart';
 import 'package:trip_reminder_scheduler/src/core/schedule_engine.dart';
 import 'package:trip_reminder_scheduler/src/core/timezone_resolver.dart';
@@ -30,8 +31,9 @@ void main() {
 
   ReminderScheduler build(
     FakeNotificationGateway gateway,
-    InMemoryRegistryStore store,
-  ) {
+    InMemoryRegistryStore store, {
+    List<Trip> Function()? trips,
+  }) {
     final resolver = TimezoneResolver(
       deviceSource: FakeDeviceTimezoneSource('America/New_York'),
       locationSource: FakeLocationZoneSource(),
@@ -41,8 +43,22 @@ void main() {
       engine: ScheduleEngine(resolver: resolver),
       gateway: gateway,
       registryStore: store,
-      loadTrips: () async => [trip()],
+      loadTrips: () async => trips?.call() ?? [trip()],
     );
+  }
+
+  // A scheduler that has already scheduled the trip's five reminders, standing
+  // in for an earlier run of the app. The store and gateway outlive it, as
+  // the persisted registry and the OS do.
+  void scheduleInEarlierProcess(
+    FakeAsync async,
+    FakeNotificationGateway gateway,
+    InMemoryRegistryStore store,
+  ) {
+    build(gateway, store).request(RescheduleTrigger.userEdit);
+    async.elapse(const Duration(milliseconds: 300));
+    expect(gateway.scheduled, hasLength(5));
+    gateway.scheduled.clear();
   }
 
   test('a reschedule request schedules reminders and persists the registry',
@@ -107,4 +123,94 @@ void main() {
               'delivered notifications');
     }, initialTime: initialTime);
   });
+
+  test('a new process hands the whole schedule back, then goes back to diffs',
+      () {
+    fakeAsync((async) {
+      final gateway = FakeNotificationGateway();
+      final store = InMemoryRegistryStore();
+      scheduleInEarlierProcess(async, gateway, store);
+
+      // Relaunch minutes later. The registry is fresh and the gateway still
+      // lists all five as pending — exactly what Android's plugin reports after
+      // a force-stop has cleared the real alarms — so neither launch recovery
+      // nor the diff sees anything to do.
+      async.elapse(const Duration(minutes: 5));
+      final relaunched = build(gateway, store);
+      RescheduleTrigger? recovery = RescheduleTrigger.osCleared;
+      relaunched.recoverOnLaunch().then((t) => recovery = t);
+      async.elapse(const Duration(milliseconds: 300));
+
+      expect(recovery, isNull, reason: 'nothing looked wrong');
+      expect(gateway.scheduled.map((r) => r.id).toSet(), store.current.ids.toSet(),
+          reason: 'the first run of a process re-asserts every reminder');
+      expect(gateway.scheduled, hasLength(5));
+      expect(gateway.cancelled, isEmpty);
+
+      // Once per process: the next run is an ordinary diff again.
+      gateway.scheduled.clear();
+      async.elapse(const Duration(seconds: 6)); // clear the dedup window
+      relaunched.request(RescheduleTrigger.appResume);
+      async.elapse(const Duration(milliseconds: 300));
+      expect(gateway.scheduled, isEmpty);
+    }, initialTime: initialTime);
+  });
+
+  test('a process\'s first run still cancels what is no longer wanted', () {
+    fakeAsync((async) {
+      final gateway = FakeNotificationGateway();
+      final store = InMemoryRegistryStore();
+      scheduleInEarlierProcess(async, gateway, store);
+      final ids = store.current.ids.toSet();
+
+      // The trip is gone by the time the new process first runs.
+      build(gateway, store, trips: () => const [])
+          .request(RescheduleTrigger.userEdit);
+      async.elapse(const Duration(milliseconds: 300));
+
+      expect(gateway.cancelled.toSet(), ids);
+      expect(gateway.scheduled, isEmpty);
+    }, initialTime: initialTime);
+  });
+
+  test('a failed first run leaves the hand-over owed to the next run', () {
+    fakeAsync((async) {
+      final gateway = _FailsOnceGateway();
+      final store = InMemoryRegistryStore();
+      scheduleInEarlierProcess(async, gateway, store);
+
+      final relaunched = build(gateway, store);
+      gateway.failNext = true;
+      Object? error;
+      relaunched.recoverOnLaunch().catchError((Object e) {
+        error = e;
+        return null;
+      });
+      async.elapse(const Duration(milliseconds: 300));
+      expect(error, isA<StateError>());
+
+      gateway.scheduled.clear();
+      relaunched.request(RescheduleTrigger.userEdit);
+      async.elapse(const Duration(milliseconds: 300));
+      expect(gateway.scheduled, hasLength(5));
+    }, initialTime: initialTime);
+  });
+}
+
+/// Rejects one schedule call when [failNext] is set, then behaves normally.
+class _FailsOnceGateway extends FakeNotificationGateway {
+  bool failNext = false;
+
+  @override
+  Future<void> schedule(
+    ScheduledReminder reminder, {
+    required String title,
+    required String body,
+  }) async {
+    if (failNext) {
+      failNext = false;
+      throw StateError('the OS rejected the schedule');
+    }
+    return super.schedule(reminder, title: title, body: body);
+  }
 }
