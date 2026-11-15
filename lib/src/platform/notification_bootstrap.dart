@@ -30,16 +30,20 @@ abstract final class NotificationBootstrap {
   static Future<void> _requestPermissions(
     FlutterLocalNotificationsPlugin plugin,
   ) async {
-    final android = plugin.resolvePlatformSpecificImplementation<
-        AndroidFlutterLocalNotificationsPlugin>();
+    final android = plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
     if (android != null) {
       await android.requestNotificationsPermission();
       // Needed for exactAllowWhileIdle on Android 12+.
       await android.requestExactAlarmsPermission();
     }
 
-    final ios = plugin.resolvePlatformSpecificImplementation<
-        IOSFlutterLocalNotificationsPlugin>();
+    final ios = plugin
+        .resolvePlatformSpecificImplementation<
+          IOSFlutterLocalNotificationsPlugin
+        >();
     if (ios != null) {
       await ios.requestPermissions(alert: true, badge: true, sound: true);
     }

@@ -7,8 +7,8 @@
 /// is the core discipline of the whole project.
 class ReminderTime {
   const ReminderTime(this.hour, this.minute)
-      : assert(hour >= 0 && hour <= 23),
-        assert(minute >= 0 && minute <= 59);
+    : assert(hour >= 0 && hour <= 23),
+      assert(minute >= 0 && minute <= 59);
 
   final int hour;
   final int minute;

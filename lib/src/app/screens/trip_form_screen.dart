@@ -32,7 +32,11 @@ class _TripFormScreenState extends ConsumerState<TripFormScreen> {
   void initState() {
     super.initState();
     final today = DateTime.now();
-    _start = DateTime.utc(today.year, today.month, today.day).add(const Duration(days: 7));
+    _start = DateTime.utc(
+      today.year,
+      today.month,
+      today.day,
+    ).add(const Duration(days: 7));
     _end = _start.add(const Duration(days: 5));
   }
 
@@ -84,7 +88,8 @@ class _TripFormScreenState extends ConsumerState<TripFormScreen> {
           _DateRow(
             label: 'End date',
             value: _end,
-            onPick: (d) => setState(() => _end = d.isBefore(_start) ? _start : d),
+            onPick: (d) =>
+                setState(() => _end = d.isBefore(_start) ? _start : d),
           ),
           ListTile(
             contentPadding: EdgeInsets.zero,
@@ -156,8 +161,9 @@ class _TripFormScreenState extends ConsumerState<TripFormScreen> {
     }
     if (!mounted) return;
     Navigator.of(context).pop();
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 }
 
@@ -170,7 +176,11 @@ class _Label extends StatelessWidget {
 }
 
 class _DateRow extends StatelessWidget {
-  const _DateRow({required this.label, required this.value, required this.onPick});
+  const _DateRow({
+    required this.label,
+    required this.value,
+    required this.onPick,
+  });
   final String label;
   final DateTime value;
   final ValueChanged<DateTime> onPick;
@@ -196,7 +206,11 @@ class _DateRow extends StatelessWidget {
 }
 
 class _Stepper extends StatelessWidget {
-  const _Stepper({required this.label, required this.value, required this.onChanged});
+  const _Stepper({
+    required this.label,
+    required this.value,
+    required this.onChanged,
+  });
   final String label;
   final int value;
   final ValueChanged<int> onChanged;

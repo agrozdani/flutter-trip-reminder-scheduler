@@ -80,14 +80,20 @@ class _Header extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('$count scheduled',
-                    style: Theme.of(context).textTheme.titleMedium),
+                Text(
+                  '$count scheduled',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
                 if (lastZone != null)
-                  Text('Last-known zone: $lastZone',
-                      style: Theme.of(context).textTheme.bodySmall),
+                  Text(
+                    'Last-known zone: $lastZone',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
                 if (lastAt != null)
-                  Text('Last scheduled: ${_fmtUtc(lastAt!)} UTC',
-                      style: Theme.of(context).textTheme.bodySmall),
+                  Text(
+                    'Last scheduled: ${_fmtUtc(lastAt!)} UTC',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
               ],
             ),
           ),
@@ -112,7 +118,10 @@ class _ReminderTile extends ConsumerWidget {
     final fired = ref.watch(
       firedReminderIdsProvider.select((ids) => ids.contains(reminder.id)),
     );
-    final local = tz.TZDateTime.from(reminder.fireInstantUtc, _location(reminder.iana));
+    final local = tz.TZDateTime.from(
+      reminder.fireInstantUtc,
+      _location(reminder.iana),
+    );
     return Opacity(
       opacity: fired ? 0.55 : 1.0,
       child: ListTile(
@@ -126,7 +135,10 @@ class _ReminderTile extends ConsumerWidget {
             children: [
               if (fired) const _Chip('fired', Colors.grey),
               _Chip(reminder.source.name, _sourceColor(reminder.source)),
-              _Chip(reminder.confidence.name, _confidenceColor(reminder.confidence)),
+              _Chip(
+                reminder.confidence.name,
+                _confidenceColor(reminder.confidence),
+              ),
               _Chip('trip ${reminder.tripId}', Colors.grey),
               _Chip('${_fmtUtc(reminder.fireInstantUtc)}Z', Colors.blueGrey),
             ],
@@ -183,21 +195,21 @@ tz.Location _location(String iana) {
 }
 
 Color _sourceColor(ZoneSource source) => switch (source) {
-      ZoneSource.userChosen => Colors.indigo,
-      ZoneSource.liveLocation => Colors.green,
-      ZoneSource.deviceTimezone => Colors.blue,
-      ZoneSource.countryHeuristic => Colors.deepPurple,
-      ZoneSource.lastKnown => Colors.teal,
-      ZoneSource.localeFallback => Colors.orange,
-      ZoneSource.utcFallback => Colors.red,
-    };
+  ZoneSource.userChosen => Colors.indigo,
+  ZoneSource.liveLocation => Colors.green,
+  ZoneSource.deviceTimezone => Colors.blue,
+  ZoneSource.countryHeuristic => Colors.deepPurple,
+  ZoneSource.lastKnown => Colors.teal,
+  ZoneSource.localeFallback => Colors.orange,
+  ZoneSource.utcFallback => Colors.red,
+};
 
 Color _confidenceColor(ZoneConfidence confidence) => switch (confidence) {
-      ZoneConfidence.high => Colors.green,
-      ZoneConfidence.medium => Colors.blue,
-      ZoneConfidence.low => Colors.orange,
-      ZoneConfidence.fallback => Colors.red,
-    };
+  ZoneConfidence.high => Colors.green,
+  ZoneConfidence.medium => Colors.blue,
+  ZoneConfidence.low => Colors.orange,
+  ZoneConfidence.fallback => Colors.red,
+};
 
 String _two(int n) => n.toString().padLeft(2, '0');
 

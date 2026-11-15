@@ -84,12 +84,12 @@ class ResolvedZone {
   }
 
   Map<String, dynamic> toJson() => {
-        'iana': iana,
-        'source': source.name,
-        'confidence': confidence.name,
-        if (fallbackReason != null) 'fallbackReason': fallbackReason,
-        if (detectedCountry != null) 'detectedCountry': detectedCountry,
-      };
+    'iana': iana,
+    'source': source.name,
+    'confidence': confidence.name,
+    if (fallbackReason != null) 'fallbackReason': fallbackReason,
+    if (detectedCountry != null) 'detectedCountry': detectedCountry,
+  };
 
   @override
   bool operator ==(Object other) =>

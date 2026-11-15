@@ -13,23 +13,23 @@ void main() {
   setUpAll(tzdata.initializeTimeZones);
 
   TimezoneResolver resolver() => TimezoneResolver(
-        deviceSource: FakeDeviceTimezoneSource('America/New_York'),
-        locationSource: FakeLocationZoneSource(),
-        countryMap: FakeCountryZoneMap(),
-      );
+    deviceSource: FakeDeviceTimezoneSource('America/New_York'),
+    locationSource: FakeLocationZoneSource(),
+    countryMap: FakeCountryZoneMap(),
+  );
 
   final now = DateTime.utc(2024, 1, 1); // everything below is in the future
 
   Trip trip(String id) => Trip(
-        id: id,
-        homeIana: 'America/New_York',
-        destinationCountry: 'United Kingdom',
-        startDate: DateTime.utc(2024, 6, 12),
-        endDate: DateTime.utc(2024, 6, 14),
-        reminderTime: const ReminderTime(9, 0),
-        preBufferDays: 1,
-        postBufferDays: 1,
-      );
+    id: id,
+    homeIana: 'America/New_York',
+    destinationCountry: 'United Kingdom',
+    startDate: DateTime.utc(2024, 6, 12),
+    endDate: DateTime.utc(2024, 6, 14),
+    reminderTime: const ReminderTime(9, 0),
+    preBufferDays: 1,
+    postBufferDays: 1,
+  );
 
   test('deterministicId does not collide across trips (no shared ranges)', () {
     // Two trip ids differing by one character used to make their rolling hashes
@@ -44,8 +44,11 @@ void main() {
     final ids = <int>{};
     for (final id in [a, b]) {
       for (var day = 0; day < 64; day++) {
-        expect(ids.add(ScheduleEngine.deterministicId(id, day)), isTrue,
-            reason: 'collision at $id#$day');
+        expect(
+          ids.add(ScheduleEngine.deterministicId(id, day)),
+          isTrue,
+          reason: 'collision at $id#$day',
+        );
       }
     }
   });
@@ -174,8 +177,7 @@ void main() {
     expect(result.registry.reminders, hasLength(10));
     final keptDays = result.registry.reminders.map((r) => r.dayIndex).toList()
       ..sort();
-    expect(keptDays, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
-        reason: 'soonest-first');
+    expect(keptDays, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], reason: 'soonest-first');
   });
 
   test('same-minute collisions are nudged apart', () async {
@@ -183,13 +185,13 @@ void main() {
     // Three single-day trips at the same destination, same reminder time ->
     // all resolve to 08:00 UTC on the same day.
     Trip oneDay(String id) => Trip(
-          id: id,
-          homeIana: 'America/New_York',
-          destinationCountry: 'United Kingdom',
-          startDate: DateTime.utc(2024, 6, 12),
-          endDate: DateTime.utc(2024, 6, 12),
-          reminderTime: const ReminderTime(9, 0),
-        );
+      id: id,
+      homeIana: 'America/New_York',
+      destinationCountry: 'United Kingdom',
+      startDate: DateTime.utc(2024, 6, 12),
+      endDate: DateTime.utc(2024, 6, 12),
+      reminderTime: const ReminderTime(9, 0),
+    );
 
     final result = await engine.reconcile(
       registry: ReminderRegistry.empty,
@@ -211,69 +213,76 @@ void main() {
     );
   });
 
-  test('a reconcile inside the spacing window keeps the nudged reminders',
-      () async {
-    final engine = ScheduleEngine(resolver: resolver());
-    Trip oneDay(String id) => Trip(
-          id: id,
-          homeIana: 'America/New_York',
-          destinationCountry: 'United Kingdom',
-          startDate: DateTime.utc(2024, 6, 12),
-          endDate: DateTime.utc(2024, 6, 12),
-          reminderTime: const ReminderTime(9, 0),
-        );
-    final trips = [oneDay('A'), oneDay('B'), oneDay('C')];
-    final first = await engine.reconcile(
-      registry: ReminderRegistry.empty,
-      trips: trips,
-      now: now,
-      trigger: RescheduleTrigger.initialSchedule,
-    );
+  test(
+    'a reconcile inside the spacing window keeps the nudged reminders',
+    () async {
+      final engine = ScheduleEngine(resolver: resolver());
+      Trip oneDay(String id) => Trip(
+        id: id,
+        homeIana: 'America/New_York',
+        destinationCountry: 'United Kingdom',
+        startDate: DateTime.utc(2024, 6, 12),
+        endDate: DateTime.utc(2024, 6, 12),
+        reminderTime: const ReminderTime(9, 0),
+      );
+      final trips = [oneDay('A'), oneDay('B'), oneDay('C')];
+      final first = await engine.reconcile(
+        registry: ReminderRegistry.empty,
+        trips: trips,
+        now: now,
+        trigger: RescheduleTrigger.initialSchedule,
+      );
 
-    // A fires at 08:00:00, B at 08:00:05, C at 08:00:10. Tapping A's
-    // notification resumes the app, which reconciles a second or two later —
-    // while B and C are still pending.
-    final base = DateTime.utc(2024, 6, 12, 8, 0);
-    final second = await engine.reconcile(
-      registry: first.registry,
-      trips: trips,
-      now: base.add(const Duration(seconds: 2)),
-      trigger: RescheduleTrigger.appResume,
-    );
+      // A fires at 08:00:00, B at 08:00:05, C at 08:00:10. Tapping A's
+      // notification resumes the app, which reconciles a second or two later —
+      // while B and C are still pending.
+      final base = DateTime.utc(2024, 6, 12, 8, 0);
+      final second = await engine.reconcile(
+        registry: first.registry,
+        trips: trips,
+        now: base.add(const Duration(seconds: 2)),
+        trigger: RescheduleTrigger.appResume,
+      );
 
-    expect(second.plan.toCancel, isEmpty,
-        reason: 'B and C are seconds from firing; cancelling loses them');
-    expect(second.plan.toSchedule, isEmpty);
-    expect(
-      {for (final r in second.registry.reminders) r.tripId: r.fireInstantUtc},
-      {
-        'B': base.add(const Duration(seconds: 5)),
-        'C': base.add(const Duration(seconds: 10)),
-      },
-      reason: 'spacing does not depend on which siblings have already fired',
-    );
-  });
+      expect(
+        second.plan.toCancel,
+        isEmpty,
+        reason: 'B and C are seconds from firing; cancelling loses them',
+      );
+      expect(second.plan.toSchedule, isEmpty);
+      expect(
+        {for (final r in second.registry.reminders) r.tripId: r.fireInstantUtc},
+        {
+          'B': base.add(const Duration(seconds: 5)),
+          'C': base.add(const Duration(seconds: 10)),
+        },
+        reason: 'spacing does not depend on which siblings have already fired',
+      );
+    },
+  );
 
-  test('the cap keeps the soonest reminders across trips, not input order',
-      () async {
-    final engine = ScheduleEngine(resolver: resolver(), maxScheduled: 10);
-    Trip tenDays(String id, int startDay) => Trip(
-          id: id,
-          homeIana: 'America/New_York',
-          destinationCountry: 'United Kingdom',
-          startDate: DateTime.utc(2024, 6, startDay),
-          endDate: DateTime.utc(2024, 6, startDay + 9),
-          reminderTime: const ReminderTime(9, 0),
-        );
+  test(
+    'the cap keeps the soonest reminders across trips, not input order',
+    () async {
+      final engine = ScheduleEngine(resolver: resolver(), maxScheduled: 10);
+      Trip tenDays(String id, int startDay) => Trip(
+        id: id,
+        homeIana: 'America/New_York',
+        destinationCountry: 'United Kingdom',
+        startDate: DateTime.utc(2024, 6, startDay),
+        endDate: DateTime.utc(2024, 6, startDay + 9),
+        reminderTime: const ReminderTime(9, 0),
+      );
 
-    // 'late' is listed first but starts after 'early' has ended.
-    final result = await engine.reconcile(
-      registry: ReminderRegistry.empty,
-      trips: [tenDays('late', 20), tenDays('early', 1)],
-      now: now,
-      trigger: RescheduleTrigger.initialSchedule,
-    );
+      // 'late' is listed first but starts after 'early' has ended.
+      final result = await engine.reconcile(
+        registry: ReminderRegistry.empty,
+        trips: [tenDays('late', 20), tenDays('early', 1)],
+        now: now,
+        trigger: RescheduleTrigger.initialSchedule,
+      );
 
-    expect(result.registry.reminders.map((r) => r.tripId).toSet(), {'early'});
-  });
+      expect(result.registry.reminders.map((r) => r.tripId).toSet(), {'early'});
+    },
+  );
 }

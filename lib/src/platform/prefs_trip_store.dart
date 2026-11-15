@@ -22,9 +22,7 @@ class PrefsTripStore {
     final raw = _prefs.getString(key);
     if (raw == null) return const [];
     final list = jsonDecode(raw) as List<dynamic>;
-    return list
-        .map((e) => Trip.fromJson(e as Map<String, dynamic>))
-        .toList();
+    return list.map((e) => Trip.fromJson(e as Map<String, dynamic>)).toList();
   }
 
   Future<void> save(List<Trip> trips) async {

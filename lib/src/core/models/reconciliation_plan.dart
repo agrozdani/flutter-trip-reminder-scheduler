@@ -27,6 +27,7 @@ class ReconciliationPlan {
   bool get isNoop => toSchedule.isEmpty && toCancel.isEmpty;
 
   @override
-  String toString() => 'ReconciliationPlan(schedule:${toSchedule.length}, '
+  String toString() =>
+      'ReconciliationPlan(schedule:${toSchedule.length}, '
       'cancel:${toCancel.length}, unchanged:${unchanged.length})';
 }

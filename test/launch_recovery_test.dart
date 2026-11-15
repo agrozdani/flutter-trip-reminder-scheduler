@@ -30,18 +30,19 @@ void main() {
     required DateTime? lastScheduleAtUtc,
     String? lastZoneId = 'America/New_York',
     bool withReminder = true,
-  }) =>
-      ReminderRegistry(
-        reminders: withReminder ? [sample()] : const [],
-        lastZoneId: lastZoneId,
-        lastScheduleAtUtc: lastScheduleAtUtc,
-      );
+  }) => ReminderRegistry(
+    reminders: withReminder ? [sample()] : const [],
+    lastZoneId: lastZoneId,
+    lastScheduleAtUtc: lastScheduleAtUtc,
+  );
 
   final now = DateTime.utc(2024, 6, 12, 12, 0);
 
   test('OS-cleared: registry has reminders but nothing is pending', () {
     final t = recovery.decide(
-      registry: registry(lastScheduleAtUtc: now.subtract(const Duration(hours: 1))),
+      registry: registry(
+        lastScheduleAtUtc: now.subtract(const Duration(hours: 1)),
+      ),
       pendingIds: const [],
       now: now,
     );
@@ -54,7 +55,9 @@ void main() {
     final partlyFired = ReminderRegistry(
       reminders: [
         sample().copyWith(
-            id: 2, fireInstantUtc: now.subtract(const Duration(hours: 1))),
+          id: 2,
+          fireInstantUtc: now.subtract(const Duration(hours: 1)),
+        ),
         sample(),
       ],
       lastZoneId: 'America/New_York',
@@ -68,17 +71,19 @@ void main() {
     expect(t, RescheduleTrigger.osCleared);
   });
 
-  test('OS-cleared outranks cold start and periodic (cleared after long idle)',
-      () {
-    for (final idle in const [Duration(hours: 7), Duration(days: 21)]) {
-      final t = recovery.decide(
-        registry: registry(lastScheduleAtUtc: now.subtract(idle)),
-        pendingIds: const [],
-        now: now,
-      );
-      expect(t, RescheduleTrigger.osCleared, reason: 'idle for $idle');
-    }
-  });
+  test(
+    'OS-cleared outranks cold start and periodic (cleared after long idle)',
+    () {
+      for (final idle in const [Duration(hours: 7), Duration(days: 21)]) {
+        final t = recovery.decide(
+          registry: registry(lastScheduleAtUtc: now.subtract(idle)),
+          pendingIds: const [],
+          now: now,
+        );
+        expect(t, RescheduleTrigger.osCleared, reason: 'idle for $idle');
+      }
+    },
+  );
 
   test('reminders that have all fired are not mistaken for an OS clear', () {
     // sample() fires at 13:00 UTC; at 14:00 it has fired, so the OS rightly
@@ -102,7 +107,9 @@ void main() {
 
   test('cold start once the last schedule is 6h old', () {
     final t = recovery.decide(
-      registry: registry(lastScheduleAtUtc: now.subtract(const Duration(hours: 6))),
+      registry: registry(
+        lastScheduleAtUtc: now.subtract(const Duration(hours: 6)),
+      ),
       pendingIds: const [1], // still pending, so not OS-cleared
       now: now,
     );
@@ -111,7 +118,9 @@ void main() {
 
   test('periodic rebalance once the last schedule is 20 days old', () {
     final t = recovery.decide(
-      registry: registry(lastScheduleAtUtc: now.subtract(const Duration(days: 20))),
+      registry: registry(
+        lastScheduleAtUtc: now.subtract(const Duration(days: 20)),
+      ),
       pendingIds: const [1],
       now: now,
     );
@@ -132,7 +141,9 @@ void main() {
 
   test('fresh and intact within the window returns null (no-op)', () {
     final t = recovery.decide(
-      registry: registry(lastScheduleAtUtc: now.subtract(const Duration(hours: 1))),
+      registry: registry(
+        lastScheduleAtUtc: now.subtract(const Duration(hours: 1)),
+      ),
       pendingIds: const [1],
       now: now,
     );

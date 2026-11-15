@@ -12,55 +12,62 @@ import 'support/fakes.dart';
 
 void main() {
   ScheduledReminder reminder(int id, DateTime fireUtc) => ScheduledReminder(
-        id: id,
-        fireInstantUtc: fireUtc,
-        iana: 'Europe/London',
-        source: ZoneSource.countryHeuristic,
-        confidence: ZoneConfidence.medium,
-        trigger: RescheduleTrigger.initialSchedule,
-        tripId: 't1',
-        dayIndex: id,
-        wallClock: const ReminderTime(9, 0),
-        scheduledAtUtc: DateTime.utc(2024, 1, 1),
-      );
+    id: id,
+    fireInstantUtc: fireUtc,
+    iana: 'Europe/London',
+    source: ZoneSource.countryHeuristic,
+    confidence: ZoneConfidence.medium,
+    trigger: RescheduleTrigger.initialSchedule,
+    tripId: 't1',
+    dayIndex: id,
+    wallClock: const ReminderTime(9, 0),
+    scheduledAtUtc: DateTime.utc(2024, 1, 1),
+  );
 
-  test('fired ids flip at each fire instant via one armed timer, no polling',
-      () {
-    fakeAsync((async) {
-      final registry = ReminderRegistry(
-        reminders: [
-          reminder(1, DateTime.utc(2024, 1, 1, 1, 0)),
-          reminder(2, DateTime.utc(2024, 1, 1, 2, 0)),
-        ],
-        lastScheduleAtUtc: DateTime.utc(2024, 1, 1),
-      );
-      final container = ProviderContainer(overrides: [
-        registryStoreProvider
-            .overrideWithValue(InMemoryRegistryStore(registry)),
-      ]);
-      // Keep the autoDispose provider alive, as the screen's tiles would.
-      final sub = container.listen(firedReminderIdsProvider, (_, _) {});
+  test(
+    'fired ids flip at each fire instant via one armed timer, no polling',
+    () {
+      fakeAsync((async) {
+        final registry = ReminderRegistry(
+          reminders: [
+            reminder(1, DateTime.utc(2024, 1, 1, 1, 0)),
+            reminder(2, DateTime.utc(2024, 1, 1, 2, 0)),
+          ],
+          lastScheduleAtUtc: DateTime.utc(2024, 1, 1),
+        );
+        final container = ProviderContainer(
+          overrides: [
+            registryStoreProvider.overrideWithValue(
+              InMemoryRegistryStore(registry),
+            ),
+          ],
+        );
+        // Keep the autoDispose provider alive, as the screen's tiles would.
+        final sub = container.listen(firedReminderIdsProvider, (_, _) {});
 
-      async.flushMicrotasks(); // let the FutureProvider load the registry
-      async.elapse(Duration.zero); // drain Riverpod's zero-delay scheduling
-      expect(sub.read(), isEmpty, reason: 'nothing has fired yet');
-      // The only pending timer is one-shot, armed for the soonest fire instant
-      // (+1s pad) — not a poll.
-      List<Duration> armed() => [for (final t in async.pendingTimers) t.duration];
-      expect(armed(), [const Duration(hours: 1, seconds: 1)]);
+        async.flushMicrotasks(); // let the FutureProvider load the registry
+        async.elapse(Duration.zero); // drain Riverpod's zero-delay scheduling
+        expect(sub.read(), isEmpty, reason: 'nothing has fired yet');
+        // The only pending timer is one-shot, armed for the soonest fire instant
+        // (+1s pad) — not a poll.
+        List<Duration> armed() => [
+          for (final t in async.pendingTimers) t.duration,
+        ];
+        expect(armed(), [const Duration(hours: 1, seconds: 1)]);
 
-      // Just past the first fire instant (+1s timer pad): only id 1 flips.
-      async.elapse(const Duration(hours: 1, seconds: 2));
-      expect(sub.read(), {1});
-      // Re-armed at 01:00:01 for the second instant (02:00 + 1s pad).
-      expect(armed(), [const Duration(hours: 1)]);
+        // Just past the first fire instant (+1s timer pad): only id 1 flips.
+        async.elapse(const Duration(hours: 1, seconds: 2));
+        expect(sub.read(), {1});
+        // Re-armed at 01:00:01 for the second instant (02:00 + 1s pad).
+        expect(armed(), [const Duration(hours: 1)]);
 
-      // Past the second: the re-armed timer catches it too.
-      async.elapse(const Duration(hours: 1));
-      expect(sub.read(), {1, 2});
-      expect(armed(), isEmpty, reason: 'nothing left to wait for');
+        // Past the second: the re-armed timer catches it too.
+        async.elapse(const Duration(hours: 1));
+        expect(sub.read(), {1, 2});
+        expect(armed(), isEmpty, reason: 'nothing left to wait for');
 
-      container.dispose();
-    }, initialTime: DateTime.utc(2024, 1, 1));
-  });
+        container.dispose();
+      }, initialTime: DateTime.utc(2024, 1, 1));
+    },
+  );
 }

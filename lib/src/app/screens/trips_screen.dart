@@ -18,9 +18,9 @@ class TripsScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Trips')),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => Navigator.of(context).push(
-          MaterialPageRoute<void>(builder: (_) => const TripFormScreen()),
-        ),
+        onPressed: () => Navigator.of(
+          context,
+        ).push(MaterialPageRoute<void>(builder: (_) => const TripFormScreen())),
         icon: const Icon(Icons.add),
         label: const Text('Add trip'),
       ),
@@ -62,7 +62,9 @@ class _TripTile extends ConsumerWidget {
         : '';
     return ListTile(
       leading: const Icon(Icons.flight_takeoff),
-      title: Text('${trip.destinationCountry}  ·  ${trip.reminderTime.formatted}'),
+      title: Text(
+        '${trip.destinationCountry}  ·  ${trip.reminderTime.formatted}',
+      ),
       subtitle: Text(
         'Home ${trip.homeIana}\n'
         '${_date(trip.startDate)} → ${_date(trip.endDate)}$buffers',
@@ -79,10 +81,13 @@ class _TripTile extends ConsumerWidget {
                 .removeTrip(trip.id);
           } catch (error, stack) {
             reportRescheduleError(error, stack, 'cancelling a deleted trip');
-            messenger.showSnackBar(const SnackBar(
-              content: Text(
-                  'Trip deleted, but its reminders could not be cancelled yet'),
-            ));
+            messenger.showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Trip deleted, but its reminders could not be cancelled yet',
+                ),
+              ),
+            );
           }
         },
       ),

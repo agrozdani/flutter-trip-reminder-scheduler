@@ -19,15 +19,15 @@ void main() {
   final initialTime = DateTime.utc(2024, 1, 1);
 
   Trip trip() => Trip(
-        id: 't1',
-        homeIana: 'America/New_York',
-        destinationCountry: 'United Kingdom',
-        startDate: DateTime.utc(2024, 6, 12),
-        endDate: DateTime.utc(2024, 6, 14),
-        reminderTime: const ReminderTime(9, 0),
-        preBufferDays: 1,
-        postBufferDays: 1,
-      );
+    id: 't1',
+    homeIana: 'America/New_York',
+    destinationCountry: 'United Kingdom',
+    startDate: DateTime.utc(2024, 6, 12),
+    endDate: DateTime.utc(2024, 6, 14),
+    reminderTime: const ReminderTime(9, 0),
+    preBufferDays: 1,
+    postBufferDays: 1,
+  );
 
   ReminderScheduler build(
     FakeNotificationGateway gateway,
@@ -61,21 +61,23 @@ void main() {
     gateway.scheduled.clear();
   }
 
-  test('a reschedule request schedules reminders and persists the registry',
-      () {
-    fakeAsync((async) {
-      final gateway = FakeNotificationGateway();
-      final store = InMemoryRegistryStore();
-      final scheduler = build(gateway, store);
+  test(
+    'a reschedule request schedules reminders and persists the registry',
+    () {
+      fakeAsync((async) {
+        final gateway = FakeNotificationGateway();
+        final store = InMemoryRegistryStore();
+        final scheduler = build(gateway, store);
 
-      scheduler.request(RescheduleTrigger.initialSchedule);
-      async.elapse(const Duration(milliseconds: 300));
+        scheduler.request(RescheduleTrigger.initialSchedule);
+        async.elapse(const Duration(milliseconds: 300));
 
-      // 5 days (1 pre + 3 trip + 1 post), all scheduled and persisted.
-      expect(gateway.scheduled, hasLength(5));
-      expect(gateway.scheduled.map((r) => r.id).toSet(), hasLength(5));
-    }, initialTime: initialTime);
-  });
+        // 5 days (1 pre + 3 trip + 1 post), all scheduled and persisted.
+        expect(gateway.scheduled, hasLength(5));
+        expect(gateway.scheduled.map((r) => r.id).toSet(), hasLength(5));
+      }, initialTime: initialTime);
+    },
+  );
 
   test('re-requesting with no changes is a no-op (idempotent end to end)', () {
     fakeAsync((async) {
@@ -96,65 +98,79 @@ void main() {
     }, initialTime: initialTime);
   });
 
-  test('recoverOnLaunch re-schedules everything after the OS clears pending',
-      () {
-    fakeAsync((async) {
-      final gateway = FakeNotificationGateway();
-      final store = InMemoryRegistryStore();
-      final scheduler = build(gateway, store);
+  test(
+    'recoverOnLaunch re-schedules everything after the OS clears pending',
+    () {
+      fakeAsync((async) {
+        final gateway = FakeNotificationGateway();
+        final store = InMemoryRegistryStore();
+        final scheduler = build(gateway, store);
 
-      // Initial schedule.
-      scheduler.request(RescheduleTrigger.initialSchedule);
-      async.elapse(const Duration(milliseconds: 300));
-      expect(gateway.scheduled, hasLength(5));
+        // Initial schedule.
+        scheduler.request(RescheduleTrigger.initialSchedule);
+        async.elapse(const Duration(milliseconds: 300));
+        expect(gateway.scheduled, hasLength(5));
 
-      // Simulate the OS losing its pending set: the registry still records
-      // the reminders, but the OS reports nothing pending.
-      gateway.setPending(const []);
-      gateway.scheduled.clear();
+        // Simulate the OS losing its pending set: the registry still records
+        // the reminders, but the OS reports nothing pending.
+        gateway.setPending(const []);
+        gateway.scheduled.clear();
 
-      scheduler.recoverOnLaunch();
-      async.elapse(const Duration(milliseconds: 300));
+        scheduler.recoverOnLaunch();
+        async.elapse(const Duration(milliseconds: 300));
 
-      expect(gateway.scheduled, hasLength(5),
-          reason: 'osCleared forces a full resync');
-      expect(gateway.cancelled, isEmpty,
-          reason: 'nothing is pending, and a cancel would also dismiss '
-              'delivered notifications');
-    }, initialTime: initialTime);
-  });
+        expect(
+          gateway.scheduled,
+          hasLength(5),
+          reason: 'osCleared forces a full resync',
+        );
+        expect(
+          gateway.cancelled,
+          isEmpty,
+          reason:
+              'nothing is pending, and a cancel would also dismiss '
+              'delivered notifications',
+        );
+      }, initialTime: initialTime);
+    },
+  );
 
-  test('a new process hands the whole schedule back, then goes back to diffs',
-      () {
-    fakeAsync((async) {
-      final gateway = FakeNotificationGateway();
-      final store = InMemoryRegistryStore();
-      scheduleInEarlierProcess(async, gateway, store);
+  test(
+    'a new process hands the whole schedule back, then goes back to diffs',
+    () {
+      fakeAsync((async) {
+        final gateway = FakeNotificationGateway();
+        final store = InMemoryRegistryStore();
+        scheduleInEarlierProcess(async, gateway, store);
 
-      // Relaunch minutes later. The registry is fresh and the gateway still
-      // lists all five as pending — exactly what Android's plugin reports after
-      // a force-stop has cleared the real alarms — so neither launch recovery
-      // nor the diff sees anything to do.
-      async.elapse(const Duration(minutes: 5));
-      final relaunched = build(gateway, store);
-      RescheduleTrigger? recovery = RescheduleTrigger.osCleared;
-      relaunched.recoverOnLaunch().then((t) => recovery = t);
-      async.elapse(const Duration(milliseconds: 300));
+        // Relaunch minutes later. The registry is fresh and the gateway still
+        // lists all five as pending — exactly what Android's plugin reports after
+        // a force-stop has cleared the real alarms — so neither launch recovery
+        // nor the diff sees anything to do.
+        async.elapse(const Duration(minutes: 5));
+        final relaunched = build(gateway, store);
+        RescheduleTrigger? recovery = RescheduleTrigger.osCleared;
+        relaunched.recoverOnLaunch().then((t) => recovery = t);
+        async.elapse(const Duration(milliseconds: 300));
 
-      expect(recovery, isNull, reason: 'nothing looked wrong');
-      expect(gateway.scheduled.map((r) => r.id).toSet(), store.current.ids.toSet(),
-          reason: 'the first run of a process re-asserts every reminder');
-      expect(gateway.scheduled, hasLength(5));
-      expect(gateway.cancelled, isEmpty);
+        expect(recovery, isNull, reason: 'nothing looked wrong');
+        expect(
+          gateway.scheduled.map((r) => r.id).toSet(),
+          store.current.ids.toSet(),
+          reason: 'the first run of a process re-asserts every reminder',
+        );
+        expect(gateway.scheduled, hasLength(5));
+        expect(gateway.cancelled, isEmpty);
 
-      // Once per process: the next run is an ordinary diff again.
-      gateway.scheduled.clear();
-      async.elapse(const Duration(seconds: 6)); // clear the dedup window
-      relaunched.request(RescheduleTrigger.appResume);
-      async.elapse(const Duration(milliseconds: 300));
-      expect(gateway.scheduled, isEmpty);
-    }, initialTime: initialTime);
-  });
+        // Once per process: the next run is an ordinary diff again.
+        gateway.scheduled.clear();
+        async.elapse(const Duration(seconds: 6)); // clear the dedup window
+        relaunched.request(RescheduleTrigger.appResume);
+        async.elapse(const Duration(milliseconds: 300));
+        expect(gateway.scheduled, isEmpty);
+      }, initialTime: initialTime);
+    },
+  );
 
   test('a process\'s first run still cancels what is no longer wanted', () {
     fakeAsync((async) {
@@ -164,8 +180,11 @@ void main() {
       final ids = store.current.ids.toSet();
 
       // The trip is gone by the time the new process first runs.
-      build(gateway, store, trips: () => const [])
-          .request(RescheduleTrigger.userEdit);
+      build(
+        gateway,
+        store,
+        trips: () => const [],
+      ).request(RescheduleTrigger.userEdit);
       async.elapse(const Duration(milliseconds: 300));
 
       expect(gateway.cancelled.toSet(), ids);
@@ -181,9 +200,11 @@ void main() {
       final before = store.current;
 
       Object? error;
-      build(gateway, store, trips: () => throw const FormatException('unreadable'))
-          .request(RescheduleTrigger.userEdit)
-          .catchError((Object e) => error = e);
+      build(
+        gateway,
+        store,
+        trips: () => throw const FormatException('unreadable'),
+      ).request(RescheduleTrigger.userEdit).catchError((Object e) => error = e);
       async.elapse(const Duration(milliseconds: 300));
 
       expect(error, isA<FormatException>());

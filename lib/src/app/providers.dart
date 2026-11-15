@@ -23,10 +23,12 @@ import 'reminder_scheduler.dart';
 /// Async singletons created in `main()` and injected via [ProviderScope]
 /// overrides — they fail loudly if that wiring is forgotten.
 final sharedPreferencesProvider = Provider<SharedPreferences>(
-  (ref) => throw UnimplementedError('Override sharedPreferencesProvider in main()'),
+  (ref) =>
+      throw UnimplementedError('Override sharedPreferencesProvider in main()'),
 );
 final notificationPluginProvider = Provider<FlutterLocalNotificationsPlugin>(
-  (ref) => throw UnimplementedError('Override notificationPluginProvider in main()'),
+  (ref) =>
+      throw UnimplementedError('Override notificationPluginProvider in main()'),
 );
 
 // --- Ports (adapters wrapping the platform plugins) ----------------------------

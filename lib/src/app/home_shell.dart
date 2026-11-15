@@ -37,10 +37,12 @@ class _HomeShellState extends ConsumerState<HomeShell>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      unawaited(_rescheduleAndRefresh(
-        ref.read(schedulerProvider).recoverOnLaunch,
-        'running launch-time recovery',
-      ));
+      unawaited(
+        _rescheduleAndRefresh(
+          ref.read(schedulerProvider).recoverOnLaunch,
+          'running launch-time recovery',
+        ),
+      );
     });
   }
 
@@ -56,10 +58,13 @@ class _HomeShellState extends ConsumerState<HomeShell>
     // de-duplicates, so repeated resumes never storm; and because a reschedule is
     // an idempotent reconcile, a pass with nothing to change costs no OS calls.
     if (state == AppLifecycleState.resumed) {
-      unawaited(_rescheduleAndRefresh(
-        () => ref.read(schedulerProvider).request(RescheduleTrigger.appResume),
-        'rescheduling on app resume',
-      ));
+      unawaited(
+        _rescheduleAndRefresh(
+          () =>
+              ref.read(schedulerProvider).request(RescheduleTrigger.appResume),
+          'rescheduling on app resume',
+        ),
+      );
     }
   }
 
@@ -88,11 +93,17 @@ class _HomeShellState extends ConsumerState<HomeShell>
         onDestinationSelected: (i) => setState(() => _index = i),
         destinations: const [
           NavigationDestination(
-              icon: Icon(Icons.flight_takeoff), label: 'Trips'),
+            icon: Icon(Icons.flight_takeoff),
+            label: 'Trips',
+          ),
           NavigationDestination(
-              icon: Icon(Icons.notifications_outlined), label: 'Upcoming'),
+            icon: Icon(Icons.notifications_outlined),
+            label: 'Upcoming',
+          ),
           NavigationDestination(
-              icon: Icon(Icons.science_outlined), label: 'Simulate'),
+            icon: Icon(Icons.science_outlined),
+            label: 'Simulate',
+          ),
         ],
       ),
     );

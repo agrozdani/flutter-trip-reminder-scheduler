@@ -38,8 +38,9 @@ class LaunchRecovery {
     // We believe future reminders are scheduled, but the OS has nothing
     // pending: it lost them. Highest priority. Reminders whose instant has
     // passed don't count — once they fire, the OS no longer lists them.
-    final expectsPending =
-        registry.reminders.any((r) => r.fireInstantUtc.isAfter(nowUtc));
+    final expectsPending = registry.reminders.any(
+      (r) => r.fireInstantUtc.isAfter(nowUtc),
+    );
     if (expectsPending && pendingIds.isEmpty) {
       return RescheduleTrigger.osCleared;
     }

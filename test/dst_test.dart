@@ -18,16 +18,21 @@ void main() {
   });
 
   group('fall-back overlap — the wall time happens twice', () {
-    test('New York 2024-11-03 01:30 resolves to the standard-time occurrence',
-        () {
-      final loc = tz.getLocation('America/New_York');
-      final result = WallClock.toInstant(loc, 2024, 11, 3, 1, 30);
-      // 01:30 occurs at 05:30 UTC (EDT) then again at 06:30 UTC (EST). We pick
-      // the later, standard-time occurrence.
-      expect(result.toUtc(), DateTime.utc(2024, 11, 3, 6, 30));
-      expect(result.timeZoneOffset, const Duration(hours: -5),
-          reason: 'EST, the standard-time side');
-    });
+    test(
+      'New York 2024-11-03 01:30 resolves to the standard-time occurrence',
+      () {
+        final loc = tz.getLocation('America/New_York');
+        final result = WallClock.toInstant(loc, 2024, 11, 3, 1, 30);
+        // 01:30 occurs at 05:30 UTC (EDT) then again at 06:30 UTC (EST). We pick
+        // the later, standard-time occurrence.
+        expect(result.toUtc(), DateTime.utc(2024, 11, 3, 6, 30));
+        expect(
+          result.timeZoneOffset,
+          const Duration(hours: -5),
+          reason: 'EST, the standard-time side',
+        );
+      },
+    );
   });
 
   group('direction-agnostic — southern hemisphere transitions', () {
@@ -39,14 +44,16 @@ void main() {
       expect(result.hour, 3);
     });
 
-    test('Sydney fall-back 2024-04-07 02:30 takes the standard (AEST) side',
-        () {
-      final loc = tz.getLocation('Australia/Sydney');
-      final result = WallClock.toInstant(loc, 2024, 4, 7, 2, 30);
-      // AEDT(+11) -> AEST(+10); the later occurrence is AEST.
-      expect(result.toUtc(), DateTime.utc(2024, 4, 6, 16, 30));
-      expect(result.timeZoneOffset, const Duration(hours: 10));
-    });
+    test(
+      'Sydney fall-back 2024-04-07 02:30 takes the standard (AEST) side',
+      () {
+        final loc = tz.getLocation('Australia/Sydney');
+        final result = WallClock.toInstant(loc, 2024, 4, 7, 2, 30);
+        // AEDT(+11) -> AEST(+10); the later occurrence is AEST.
+        expect(result.toUtc(), DateTime.utc(2024, 4, 6, 16, 30));
+        expect(result.timeZoneOffset, const Duration(hours: 10));
+      },
+    );
   });
 
   group('sub-hour transition — Lord Howe Island shifts by 30 minutes', () {

@@ -30,8 +30,9 @@ class _SimulateScreenState extends ConsumerState<SimulateScreen> {
     }
     if (!mounted) return;
     setState(() {});
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -61,16 +62,20 @@ class _SimulateScreenState extends ConsumerState<SimulateScreen> {
               FilledButton(
                 onPressed: () {
                   locationSource.zone = _location;
-                  _reschedule(RescheduleTrigger.locationChanged,
-                      'Live location set to $_location');
+                  _reschedule(
+                    RescheduleTrigger.locationChanged,
+                    'Live location set to $_location',
+                  );
                 },
                 child: const Text('Apply'),
               ),
               OutlinedButton(
                 onPressed: () {
                   locationSource.zone = null;
-                  _reschedule(RescheduleTrigger.locationChanged,
-                      'Live location cleared');
+                  _reschedule(
+                    RescheduleTrigger.locationChanged,
+                    'Live location cleared',
+                  );
                 },
                 child: const Text('Clear'),
               ),
@@ -97,16 +102,20 @@ class _SimulateScreenState extends ConsumerState<SimulateScreen> {
               FilledButton(
                 onPressed: () {
                   deviceSource.overrideIana = _device;
-                  _reschedule(RescheduleTrigger.timezoneChanged,
-                      'Device zone overridden to $_device');
+                  _reschedule(
+                    RescheduleTrigger.timezoneChanged,
+                    'Device zone overridden to $_device',
+                  );
                 },
                 child: const Text('Apply'),
               ),
               OutlinedButton(
                 onPressed: () {
                   deviceSource.overrideIana = null;
-                  _reschedule(RescheduleTrigger.timezoneChanged,
-                      'Device zone reset');
+                  _reschedule(
+                    RescheduleTrigger.timezoneChanged,
+                    'Device zone reset',
+                  );
                 },
                 child: const Text('Reset'),
               ),
@@ -122,8 +131,10 @@ class _SimulateScreenState extends ConsumerState<SimulateScreen> {
             content: const SizedBox.shrink(),
             actions: [
               FilledButton(
-                onPressed: () => _reschedule(RescheduleTrigger.dstTransition,
-                    'Rescheduled (dstTransition)'),
+                onPressed: () => _reschedule(
+                  RescheduleTrigger.dstTransition,
+                  'Rescheduled (dstTransition)',
+                ),
                 child: const Text('Reschedule'),
               ),
             ],
