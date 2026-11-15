@@ -16,10 +16,11 @@ import 'providers.dart';
 ///
 /// A failed load is not retried: stored trips that can't be read won't become
 /// readable, and while a retry is pending every mutation waits on [future].
-final tripsControllerProvider = AsyncNotifierProvider<TripsController, List<Trip>>(
-  TripsController.new,
-  retry: (_, _) => null,
-);
+final tripsControllerProvider =
+    AsyncNotifierProvider<TripsController, List<Trip>>(
+      TripsController.new,
+      retry: (_, _) => null,
+    );
 
 class TripsController extends AsyncNotifier<List<Trip>> {
   @override

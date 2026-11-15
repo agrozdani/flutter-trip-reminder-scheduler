@@ -35,7 +35,8 @@ class ReminderRegistry {
   List<int> get ids => reminders.map((r) => r.id).toList(growable: false);
 
   List<ScheduledReminder> get sortedByFireTime =>
-      [...reminders]..sort((a, b) => a.fireInstantUtc.compareTo(b.fireInstantUtc));
+      [...reminders]
+        ..sort((a, b) => a.fireInstantUtc.compareTo(b.fireInstantUtc));
 
   ReminderRegistry copyWith({
     List<ScheduledReminder>? reminders,
@@ -52,11 +53,11 @@ class ReminderRegistry {
   }
 
   Map<String, dynamic> toJson() => {
-        'schemaVersion': schemaVersion,
-        'lastZoneId': lastZoneId,
-        'lastScheduleAtUtc': lastScheduleAtUtc?.toIso8601String(),
-        'reminders': reminders.map((r) => r.toJson()).toList(),
-      };
+    'schemaVersion': schemaVersion,
+    'lastZoneId': lastZoneId,
+    'lastScheduleAtUtc': lastScheduleAtUtc?.toIso8601String(),
+    'reminders': reminders.map((r) => r.toJson()).toList(),
+  };
 
   factory ReminderRegistry.fromJson(Map<String, dynamic> json) {
     final rawReminders = (json['reminders'] as List<dynamic>? ?? const []);

@@ -48,13 +48,15 @@ class ScheduleEngine {
     // same-minute group to give each member the same offset on every run.
     final window = <ScheduledReminder>[];
     for (final trip in trips) {
-      window.addAll(await _windowFor(
-        trip,
-        nowUtc: nowUtc,
-        trigger: trigger,
-        lastKnownIana: lastKnownIana,
-        localeCountry: localeCountry,
-      ));
+      window.addAll(
+        await _windowFor(
+          trip,
+          nowUtc: nowUtc,
+          trigger: trigger,
+          lastKnownIana: lastKnownIana,
+          localeCountry: localeCountry,
+        ),
+      );
     }
 
     // Deterministic order: by instant, then a stable tie-break so micro-offset
@@ -125,7 +127,9 @@ class ScheduleEngine {
   }) async {
     // Resolve the three candidate zones once per trip.
     final home = await resolver.resolveHomeZone(trip.homeIana);
-    final destination = await resolver.resolveForDestination(trip.destinationCountry);
+    final destination = await resolver.resolveForDestination(
+      trip.destinationCountry,
+    );
     final todayZone = await resolver.resolveForCurrentZone(
       lastKnownIana: lastKnownIana,
       localeCountry: localeCountry,
@@ -166,18 +170,20 @@ class ScheduleEngine {
         trip.reminderTime.hour,
         trip.reminderTime.minute,
       );
-      out.add(ScheduledReminder(
-        id: deterministicId(trip.id, i),
-        fireInstantUtc: fire.toUtc(),
-        iana: zone.iana,
-        source: zone.source,
-        confidence: zone.confidence,
-        trigger: trigger,
-        tripId: trip.id,
-        dayIndex: i,
-        wallClock: trip.reminderTime,
-        scheduledAtUtc: nowUtc,
-      ));
+      out.add(
+        ScheduledReminder(
+          id: deterministicId(trip.id, i),
+          fireInstantUtc: fire.toUtc(),
+          iana: zone.iana,
+          source: zone.source,
+          confidence: zone.confidence,
+          trigger: trigger,
+          tripId: trip.id,
+          dayIndex: i,
+          wallClock: trip.reminderTime,
+          scheduledAtUtc: nowUtc,
+        ),
+      );
     }
     return out;
   }
@@ -210,16 +216,17 @@ class ScheduleEngine {
     final perMinute = <int, int>{};
     final out = <ScheduledReminder>[];
     for (final reminder in sorted) {
-      final minute =
-          reminder.fireInstantUtc.millisecondsSinceEpoch ~/ 60000;
+      final minute = reminder.fireInstantUtc.millisecondsSinceEpoch ~/ 60000;
       final seen = perMinute[minute] ?? 0;
       perMinute[minute] = seen + 1;
       if (seen == 0) {
         out.add(reminder);
       } else {
-        out.add(reminder.copyWith(
-          fireInstantUtc: reminder.fireInstantUtc.add(microOffset * seen),
-        ));
+        out.add(
+          reminder.copyWith(
+            fireInstantUtc: reminder.fireInstantUtc.add(microOffset * seen),
+          ),
+        );
       }
     }
     return out;

@@ -21,8 +21,8 @@ class ScheduledReminder {
     required this.dayIndex,
     required this.wallClock,
     required this.scheduledAtUtc,
-  })  : assert(fireInstantUtc.isUtc, 'fireInstantUtc must be UTC'),
-        assert(scheduledAtUtc.isUtc, 'scheduledAtUtc must be UTC');
+  }) : assert(fireInstantUtc.isUtc, 'fireInstantUtc must be UTC'),
+       assert(scheduledAtUtc.isUtc, 'scheduledAtUtc must be UTC');
 
   /// Deterministic notification id (stable across runs for the same input).
   final int id;
@@ -82,17 +82,17 @@ class ScheduledReminder {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'fireInstantUtc': fireInstantUtc.toIso8601String(),
-        'iana': iana,
-        'source': source.name,
-        'confidence': confidence.name,
-        'trigger': trigger.name,
-        'tripId': tripId,
-        'dayIndex': dayIndex,
-        'wallClock': wallClock.formatted,
-        'scheduledAtUtc': scheduledAtUtc.toIso8601String(),
-      };
+    'id': id,
+    'fireInstantUtc': fireInstantUtc.toIso8601String(),
+    'iana': iana,
+    'source': source.name,
+    'confidence': confidence.name,
+    'trigger': trigger.name,
+    'tripId': tripId,
+    'dayIndex': dayIndex,
+    'wallClock': wallClock.formatted,
+    'scheduledAtUtc': scheduledAtUtc.toIso8601String(),
+  };
 
   factory ScheduledReminder.fromJson(Map<String, dynamic> json) {
     return ScheduledReminder(
@@ -105,8 +105,7 @@ class ScheduledReminder {
       tripId: json['tripId'] as String,
       dayIndex: (json['dayIndex'] as num).toInt(),
       wallClock: ReminderTime.parse(json['wallClock'] as String),
-      scheduledAtUtc:
-          DateTime.parse(json['scheduledAtUtc'] as String).toUtc(),
+      scheduledAtUtc: DateTime.parse(json['scheduledAtUtc'] as String).toUtc(),
     );
   }
 
@@ -125,11 +124,22 @@ class ScheduledReminder {
       other.scheduledAtUtc == scheduledAtUtc;
 
   @override
-  int get hashCode => Object.hash(id, fireInstantUtc, iana, source, confidence,
-      trigger, tripId, dayIndex, wallClock, scheduledAtUtc);
+  int get hashCode => Object.hash(
+    id,
+    fireInstantUtc,
+    iana,
+    source,
+    confidence,
+    trigger,
+    tripId,
+    dayIndex,
+    wallClock,
+    scheduledAtUtc,
+  );
 
   @override
-  String toString() => 'ScheduledReminder(id:$id, fire:$fireInstantUtc, '
+  String toString() =>
+      'ScheduledReminder(id:$id, fire:$fireInstantUtc, '
       '$iana, ${source.name}/${confidence.name}, trip:$tripId#$dayIndex)';
 }
 

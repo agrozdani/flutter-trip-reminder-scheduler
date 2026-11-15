@@ -26,17 +26,19 @@ void main() {
   }) async {
     SharedPreferences.setMockInitialValues(stored);
     final prefs = await SharedPreferences.getInstance();
-    await tester.pumpWidget(ProviderScope(
-      overrides: [
-        sharedPreferencesProvider.overrideWithValue(prefs),
-        gatewayProvider.overrideWithValue(gateway),
-        registryStoreProvider.overrideWithValue(InMemoryRegistryStore()),
-        deviceTimezoneSourceProvider.overrideWithValue(
-          OverridableDeviceTimezoneSource(FakeDeviceTimezoneSource('UTC')),
-        ),
-      ],
-      child: const TripReminderApp(),
-    ));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          gatewayProvider.overrideWithValue(gateway),
+          registryStoreProvider.overrideWithValue(InMemoryRegistryStore()),
+          deviceTimezoneSourceProvider.overrideWithValue(
+            OverridableDeviceTimezoneSource(FakeDeviceTimezoneSource('UTC')),
+          ),
+        ],
+        child: const TripReminderApp(),
+      ),
+    );
     await tester.pump(const Duration(seconds: 1)); // let launch recovery run
 
     await tester.tap(find.text('Add trip'));
@@ -46,8 +48,9 @@ void main() {
     return prefs;
   }
 
-  testWidgets('a double tap on Save adds the trip once and pops once',
-      (tester) async {
+  testWidgets('a double tap on Save adds the trip once and pops once', (
+    tester,
+  ) async {
     final prefs = await pumpForm(tester, FakeNotificationGateway());
     final save = find.text('Save & schedule');
 
@@ -60,15 +63,19 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(await PrefsTripStore(prefs).load(), hasLength(1));
-    expect(find.byType(HomeShell), findsOneWidget,
-        reason: 'the form popped once, back to the home shell');
+    expect(
+      find.byType(HomeShell),
+      findsOneWidget,
+      reason: 'the form popped once, back to the home shell',
+    );
 
     // Dispose the provider graph so no timer outlives the test.
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('a failed reschedule still closes the form and says so',
-      (tester) async {
+  testWidgets('a failed reschedule still closes the form and says so', (
+    tester,
+  ) async {
     final prefs = await pumpForm(tester, _RejectingGateway());
 
     final reported = <FlutterErrorDetails>[];
@@ -92,8 +99,9 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('Back waits for a save in flight instead of racing it',
-      (tester) async {
+  testWidgets('Back waits for a save in flight instead of racing it', (
+    tester,
+  ) async {
     final prefs = await pumpForm(tester, FakeNotificationGateway());
 
     // Back lands while the save is awaiting the debounced reschedule. Were the
@@ -103,8 +111,11 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
     await tester.pageBack();
     await tester.pump();
-    expect(find.byType(TripFormScreen), findsOneWidget,
-        reason: 'Back is held until the save has finished');
+    expect(
+      find.byType(TripFormScreen),
+      findsOneWidget,
+      reason: 'Back is held until the save has finished',
+    );
 
     await tester.pump(const Duration(seconds: 1));
     await tester.pumpAndSettle();
@@ -115,47 +126,53 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('Back during a save that then fails still ends with the message',
-      (tester) async {
-    await pumpForm(
-      tester,
-      _RejectingGateway(after: const Duration(seconds: 2)),
-    );
+  testWidgets(
+    'Back during a save that then fails still ends with the message',
+    (tester) async {
+      await pumpForm(
+        tester,
+        _RejectingGateway(after: const Duration(seconds: 2)),
+      );
 
-    final reported = <FlutterErrorDetails>[];
-    final onError = FlutterError.onError;
-    FlutterError.onError = reported.add;
-    try {
-      await tester.tap(find.text('Save & schedule'));
-      await tester.pump(const Duration(milliseconds: 100));
-      await tester.pageBack();
-      // Frame by frame, so a Back that got through would finish its exit
-      // transition and dispose the form well before the reschedule fails.
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 500));
-      await tester.pump();
-      await tester.pump(const Duration(seconds: 3));
-      await tester.pumpAndSettle();
-    } finally {
-      FlutterError.onError = onError;
-    }
+      final reported = <FlutterErrorDetails>[];
+      final onError = FlutterError.onError;
+      FlutterError.onError = reported.add;
+      try {
+        await tester.tap(find.text('Save & schedule'));
+        await tester.pump(const Duration(milliseconds: 100));
+        await tester.pageBack();
+        // Frame by frame, so a Back that got through would finish its exit
+        // transition and dispose the form well before the reschedule fails.
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 500));
+        await tester.pump();
+        await tester.pump(const Duration(seconds: 3));
+        await tester.pumpAndSettle();
+      } finally {
+        FlutterError.onError = onError;
+      }
 
-    expect(reported.single.exception, isA<PlatformException>());
-    expect(find.byType(HomeShell), findsOneWidget);
-    expect(find.textContaining('could not be scheduled'), findsOneWidget);
+      expect(reported.single.exception, isA<PlatformException>());
+      expect(find.byType(HomeShell), findsOneWidget);
+      expect(find.textContaining('could not be scheduled'), findsOneWidget);
 
-    await tester.pumpWidget(const SizedBox());
-  });
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
 
-  testWidgets('a trip added over unreadable stored trips is not saved',
-      (tester) async {
+  testWidgets('a trip added over unreadable stored trips is not saved', (
+    tester,
+  ) async {
     final reported = <FlutterErrorDetails>[];
     final onError = FlutterError.onError;
     FlutterError.onError = reported.add;
     late SharedPreferences prefs;
     try {
-      prefs = await pumpForm(tester, FakeNotificationGateway(),
-          stored: {'trips_v1': 'not json'});
+      prefs = await pumpForm(
+        tester,
+        FakeNotificationGateway(),
+        stored: {'trips_v1': 'not json'},
+      );
       await tester.tap(find.text('Save & schedule'));
       await tester.pump(const Duration(seconds: 1));
       await tester.pumpAndSettle();
@@ -165,8 +182,11 @@ void main() {
 
     // Launch recovery and the save both report the unreadable trips.
     expect(reported, hasLength(2));
-    expect(find.byType(TripFormScreen), findsOneWidget,
-        reason: 'stays open, Save enabled again, nothing overwritten');
+    expect(
+      find.byType(TripFormScreen),
+      findsOneWidget,
+      reason: 'stays open, Save enabled again, nothing overwritten',
+    );
     expect(find.text('The trip could not be saved'), findsOneWidget);
     expect(prefs.getString('trips_v1'), 'not json');
 
@@ -186,9 +206,8 @@ class _RejectingGateway extends FakeNotificationGateway {
     ScheduledReminder reminder, {
     required String title,
     required String body,
-  }) =>
-      Future.delayed(
-        after,
-        () => throw PlatformException(code: 'exact_alarms_not_permitted'),
-      );
+  }) => Future.delayed(
+    after,
+    () => throw PlatformException(code: 'exact_alarms_not_permitted'),
+  );
 }

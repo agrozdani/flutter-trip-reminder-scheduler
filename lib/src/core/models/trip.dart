@@ -66,26 +66,26 @@ class Trip {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'homeIana': homeIana,
-        'destinationCountry': destinationCountry,
-        'startDate': startDate.toIso8601String(),
-        'endDate': endDate.toIso8601String(),
-        'reminderTime': reminderTime.formatted,
-        'preBufferDays': preBufferDays,
-        'postBufferDays': postBufferDays,
-      };
+    'id': id,
+    'homeIana': homeIana,
+    'destinationCountry': destinationCountry,
+    'startDate': startDate.toIso8601String(),
+    'endDate': endDate.toIso8601String(),
+    'reminderTime': reminderTime.formatted,
+    'preBufferDays': preBufferDays,
+    'postBufferDays': postBufferDays,
+  };
 
   factory Trip.fromJson(Map<String, dynamic> json) => Trip(
-        id: json['id'] as String,
-        homeIana: json['homeIana'] as String,
-        destinationCountry: json['destinationCountry'] as String,
-        startDate: DateTime.parse(json['startDate'] as String),
-        endDate: DateTime.parse(json['endDate'] as String),
-        reminderTime: ReminderTime.parse(json['reminderTime'] as String),
-        preBufferDays: (json['preBufferDays'] as num?)?.toInt() ?? 0,
-        postBufferDays: (json['postBufferDays'] as num?)?.toInt() ?? 0,
-      );
+    id: json['id'] as String,
+    homeIana: json['homeIana'] as String,
+    destinationCountry: json['destinationCountry'] as String,
+    startDate: DateTime.parse(json['startDate'] as String),
+    endDate: DateTime.parse(json['endDate'] as String),
+    reminderTime: ReminderTime.parse(json['reminderTime'] as String),
+    preBufferDays: (json['preBufferDays'] as num?)?.toInt() ?? 0,
+    postBufferDays: (json['postBufferDays'] as num?)?.toInt() ?? 0,
+  );
 
   @override
   bool operator ==(Object other) =>
@@ -100,8 +100,16 @@ class Trip {
       other.postBufferDays == postBufferDays;
 
   @override
-  int get hashCode => Object.hash(id, homeIana, destinationCountry, startDate,
-      endDate, reminderTime, preBufferDays, postBufferDays);
+  int get hashCode => Object.hash(
+    id,
+    homeIana,
+    destinationCountry,
+    startDate,
+    endDate,
+    reminderTime,
+    preBufferDays,
+    postBufferDays,
+  );
 
   @override
   String toString() =>

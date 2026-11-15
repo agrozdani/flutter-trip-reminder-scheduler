@@ -26,9 +26,9 @@ class ReminderScheduler {
     this._recovery = const LaunchRecovery(),
     String Function(ScheduledReminder reminder)? title,
     String Function(ScheduledReminder reminder)? body,
-  })  : _store = registryStore,
-        _title = title ?? _defaultTitle,
-        _body = body ?? _defaultBody {
+  }) : _store = registryStore,
+       _title = title ?? _defaultTitle,
+       _body = body ?? _defaultBody {
     _coordinator = RescheduleCoordinator(onReschedule: _perform);
   }
 
@@ -92,15 +92,19 @@ class ReminderScheduler {
     // deterministic, so that overwrites what survived rather than duplicating
     // it. What to cancel still comes from the diff.
     final handOver = !_handedOver || trigger == RescheduleTrigger.osCleared;
-    final toSchedule =
-        handOver ? result.registry.reminders : result.plan.toSchedule;
+    final toSchedule = handOver
+        ? result.registry.reminders
+        : result.plan.toSchedule;
 
     for (final id in result.plan.toCancel) {
       await _gateway.cancel(id);
     }
     for (final reminder in toSchedule) {
-      await _gateway.schedule(reminder,
-          title: _title(reminder), body: _body(reminder));
+      await _gateway.schedule(
+        reminder,
+        title: _title(reminder),
+        body: _body(reminder),
+      );
     }
     await _store.save(result.registry);
     _handedOver = true;

@@ -24,9 +24,9 @@ class TimezoneResolver {
     required DeviceTimezoneSource deviceSource,
     required LocationZoneSource locationSource,
     required CountryZoneMap countryMap,
-  })  : _device = deviceSource,
-        _location = locationSource,
-        _countries = countryMap;
+  }) : _device = deviceSource,
+       _location = locationSource,
+       _countries = countryMap;
 
   final DeviceTimezoneSource _device;
   final LocationZoneSource _location;
@@ -131,12 +131,11 @@ class TimezoneResolver {
   Future<ResolvedZone> resolveForCurrentZone({
     String? lastKnownIana,
     String? localeCountry,
-  }) =>
-      resolveCascade(
-        allowLocation: true,
-        lastKnownIana: lastKnownIana,
-        localeCountry: localeCountry,
-      );
+  }) => resolveCascade(
+    allowLocation: true,
+    lastKnownIana: lastKnownIana,
+    localeCountry: localeCountry,
+  );
 
   /// For home days: honor the user's chosen zone if it is valid — reported as
   /// [ZoneSource.userChosen] at high confidence, since an explicit choice
@@ -166,18 +165,19 @@ class TimezoneResolver {
       source: ZoneSource.countryHeuristic,
       confidence: multi ? ZoneConfidence.low : ZoneConfidence.medium,
       detectedCountry: country,
-      fallbackReason:
-          multi ? 'Country spans multiple zones; using its primary zone' : null,
+      fallbackReason: multi
+          ? 'Country spans multiple zones; using its primary zone'
+          : null,
     );
   }
 
   ResolvedZone _utc(String reason) => ResolvedZone(
-        iana: 'UTC',
-        location: tz.UTC,
-        source: ZoneSource.utcFallback,
-        confidence: ZoneConfidence.fallback,
-        fallbackReason: reason,
-      );
+    iana: 'UTC',
+    location: tz.UTC,
+    source: ZoneSource.utcFallback,
+    confidence: ZoneConfidence.fallback,
+    fallbackReason: reason,
+  );
 
   tz.Location? _tryLocation(String? iana) {
     if (iana == null || iana.isEmpty) return null;

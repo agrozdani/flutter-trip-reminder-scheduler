@@ -10,31 +10,42 @@ void main() {
       WallClock.toInstant(tz.getLocation(iana), y, mo, d, h, mi).toUtc();
 
   test('New York 09:00 in winter is 14:00 UTC (EST, -5)', () {
-    expect(instant('America/New_York', 2024, 1, 15, 9, 0),
-        DateTime.utc(2024, 1, 15, 14, 0));
+    expect(
+      instant('America/New_York', 2024, 1, 15, 9, 0),
+      DateTime.utc(2024, 1, 15, 14, 0),
+    );
   });
 
   test('London 09:00 in winter is 09:00 UTC (GMT)', () {
-    expect(instant('Europe/London', 2024, 1, 15, 9, 0),
-        DateTime.utc(2024, 1, 15, 9, 0));
+    expect(
+      instant('Europe/London', 2024, 1, 15, 9, 0),
+      DateTime.utc(2024, 1, 15, 9, 0),
+    );
   });
 
   test('Tokyo 09:00 is 00:00 UTC (JST, +9, no DST)', () {
-    expect(instant('Asia/Tokyo', 2024, 1, 15, 9, 0),
-        DateTime.utc(2024, 1, 15, 0, 0));
+    expect(
+      instant('Asia/Tokyo', 2024, 1, 15, 9, 0),
+      DateTime.utc(2024, 1, 15, 0, 0),
+    );
   });
 
   test('half-hour zone: Kolkata 09:00 is 03:30 UTC (+5:30)', () {
-    expect(instant('Asia/Kolkata', 2024, 1, 15, 9, 0),
-        DateTime.utc(2024, 1, 15, 3, 30));
+    expect(
+      instant('Asia/Kolkata', 2024, 1, 15, 9, 0),
+      DateTime.utc(2024, 1, 15, 3, 30),
+    );
   });
 
-  test('the same wall clock is a different instant in a far-away home zone', () {
-    final ny = instant('America/New_York', 2024, 1, 15, 9, 0);
-    final lagos = instant('Africa/Lagos', 2024, 1, 15, 9, 0);
-    expect(lagos, DateTime.utc(2024, 1, 15, 8, 0), reason: 'WAT +1');
-    expect(ny.difference(lagos), const Duration(hours: 6));
-  });
+  test(
+    'the same wall clock is a different instant in a far-away home zone',
+    () {
+      final ny = instant('America/New_York', 2024, 1, 15, 9, 0);
+      final lagos = instant('Africa/Lagos', 2024, 1, 15, 9, 0);
+      expect(lagos, DateTime.utc(2024, 1, 15, 8, 0), reason: 'WAT +1');
+      expect(ny.difference(lagos), const Duration(hours: 6));
+    },
+  );
 
   test('date-line: Apia 09:00 maps to the previous UTC day', () {
     final loc = tz.getLocation('Pacific/Apia');

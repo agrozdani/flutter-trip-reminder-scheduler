@@ -20,9 +20,7 @@ class PrefsRegistryStore implements RegistryStore {
     final raw = _prefs.getString(key);
     if (raw == null) return ReminderRegistry.empty;
     try {
-      return ReminderRegistry.fromJson(
-        jsonDecode(raw) as Map<String, dynamic>,
-      );
+      return ReminderRegistry.fromJson(jsonDecode(raw) as Map<String, dynamic>);
     } catch (_) {
       // Corrupt or schema-incompatible data: start clean rather than crash.
       return ReminderRegistry.empty;

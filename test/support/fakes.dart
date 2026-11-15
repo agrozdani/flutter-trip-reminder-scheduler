@@ -25,7 +25,8 @@ class FakeLocationZoneSource implements LocationZoneSource {
 /// A small, deterministic country→zone table for tests. Includes multi-zone
 /// countries (United States, Australia) so the confidence-downgrade path runs.
 class FakeCountryZoneMap implements CountryZoneMap {
-  FakeCountryZoneMap([Map<String, List<String>>? data]) : _data = data ?? _default;
+  FakeCountryZoneMap([Map<String, List<String>>? data])
+    : _data = data ?? _default;
 
   final Map<String, List<String>> _data;
 
@@ -95,7 +96,7 @@ class FakeNotificationGateway implements NotificationGateway {
 /// In-memory [RegistryStore] for tests.
 class InMemoryRegistryStore implements RegistryStore {
   InMemoryRegistryStore([ReminderRegistry? initial])
-      : _registry = initial ?? ReminderRegistry.empty;
+    : _registry = initial ?? ReminderRegistry.empty;
 
   ReminderRegistry _registry;
 

@@ -82,7 +82,11 @@ void main() {
       async.elapse(const Duration(seconds: 3));
 
       expect(maxActive, 1, reason: 'the second run never overlapped the first');
-      expect(completed, 2, reason: 'the mid-run request was queued, not dropped');
+      expect(
+        completed,
+        2,
+        reason: 'the mid-run request was queued, not dropped',
+      );
     });
   });
 
@@ -120,37 +124,39 @@ void main() {
     });
   });
 
-  test('a failed run surfaces its error but does not poison the coordinator',
-      () {
-    fakeAsync((async) {
-      var calls = 0;
-      var failNext = true;
-      Object? surfaced;
-      final c = RescheduleCoordinator(
-        dedupWindow: Duration.zero,
-        onReschedule: (t) async {
-          calls++;
-          if (failNext) {
-            failNext = false;
-            throw StateError('transient failure');
-          }
-        },
-      );
+  test(
+    'a failed run surfaces its error but does not poison the coordinator',
+    () {
+      fakeAsync((async) {
+        var calls = 0;
+        var failNext = true;
+        Object? surfaced;
+        final c = RescheduleCoordinator(
+          dedupWindow: Duration.zero,
+          onReschedule: (t) async {
+            calls++;
+            if (failNext) {
+              failNext = false;
+              throw StateError('transient failure');
+            }
+          },
+        );
 
-      // First run throws; the failure must reach the caller...
-      c.request(RescheduleTrigger.coldStart).catchError((Object e) {
-        surfaced = e;
+        // First run throws; the failure must reach the caller...
+        c.request(RescheduleTrigger.coldStart).catchError((Object e) {
+          surfaced = e;
+        });
+        async.elapse(const Duration(milliseconds: 300));
+        expect(calls, 1);
+        expect(surfaced, isA<StateError>(), reason: 'error surfaced to caller');
+
+        // ...but a later request must still run (no permanent poisoning).
+        c.request(RescheduleTrigger.periodicRebalance);
+        async.elapse(const Duration(milliseconds: 300));
+        expect(calls, 2, reason: 'coordinator recovered after the failure');
       });
-      async.elapse(const Duration(milliseconds: 300));
-      expect(calls, 1);
-      expect(surfaced, isA<StateError>(), reason: 'error surfaced to caller');
-
-      // ...but a later request must still run (no permanent poisoning).
-      c.request(RescheduleTrigger.periodicRebalance);
-      async.elapse(const Duration(milliseconds: 300));
-      expect(calls, 2, reason: 'coordinator recovered after the failure');
-    });
-  });
+    },
+  );
 
   test('a fresh run is allowed once the dedup window has elapsed', () {
     fakeAsync((async) {

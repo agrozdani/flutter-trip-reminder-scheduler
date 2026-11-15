@@ -47,12 +47,18 @@ abstract final class WallClock {
     // size: Lord Howe's 30-minute shift as well as two-hour ones. Building from
     // DateTime.utc also keeps the result independent of the host device's own
     // offset.
-    final nextTransition =
-        location.lookupTimeZone(local.millisecondsSinceEpoch).end;
+    final nextTransition = location
+        .lookupTimeZone(local.millisecondsSinceEpoch)
+        .end;
     final offsetAfter = location.timeZone(nextTransition).offset;
     if (offsetAfter < local.timeZoneOffset) {
-      final wallAsUtcMs =
-          DateTime.utc(year, month, day, hour, minute).millisecondsSinceEpoch;
+      final wallAsUtcMs = DateTime.utc(
+        year,
+        month,
+        day,
+        hour,
+        minute,
+      ).millisecondsSinceEpoch;
       final candidate = tz.TZDateTime.fromMillisecondsSinceEpoch(
         location,
         wallAsUtcMs - offsetAfter.inMilliseconds,

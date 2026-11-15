@@ -15,23 +15,23 @@ void main() {
 
   // Home New York, destination United Kingdom (Europe/London).
   ScheduleEngine engineWith({String? location}) => ScheduleEngine(
-        resolver: TimezoneResolver(
-          deviceSource: FakeDeviceTimezoneSource('America/New_York'),
-          locationSource: FakeLocationZoneSource(location),
-          countryMap: FakeCountryZoneMap(),
-        ),
-      );
+    resolver: TimezoneResolver(
+      deviceSource: FakeDeviceTimezoneSource('America/New_York'),
+      locationSource: FakeLocationZoneSource(location),
+      countryMap: FakeCountryZoneMap(),
+    ),
+  );
 
   Trip nyToLondon() => Trip(
-        id: 't1',
-        homeIana: 'America/New_York',
-        destinationCountry: 'United Kingdom',
-        startDate: DateTime.utc(2024, 6, 12),
-        endDate: DateTime.utc(2024, 6, 14),
-        reminderTime: const ReminderTime(9, 0),
-        preBufferDays: 1,
-        postBufferDays: 1,
-      );
+    id: 't1',
+    homeIana: 'America/New_York',
+    destinationCountry: 'United Kingdom',
+    startDate: DateTime.utc(2024, 6, 12),
+    endDate: DateTime.utc(2024, 6, 14),
+    reminderTime: const ReminderTime(9, 0),
+    preBufferDays: 1,
+    postBufferDays: 1,
+  );
 
   ScheduledReminder byDay(List<ScheduledReminder> rs, int dayIndex) =>
       rs.firstWhere((r) => r.dayIndex == dayIndex);
@@ -55,25 +55,27 @@ void main() {
     expect(byDay(cands, 4).iana, 'America/New_York', reason: 'post-buffer day');
   });
 
-  test('today + high-confidence live location overrides the phase zone',
-      () async {
-    final engine = engineWith(location: 'Asia/Dubai');
-    // now is the morning of 2024-06-12 in New York (home), so day index 1 is
-    // "today" — and it is a destination day, which the live zone overrides.
-    final cands = await engine.candidatesFor(
-      nyToLondon(),
-      now: DateTime.utc(2024, 6, 12, 4, 30),
-      trigger: RescheduleTrigger.locationChanged,
-    );
+  test(
+    'today + high-confidence live location overrides the phase zone',
+    () async {
+      final engine = engineWith(location: 'Asia/Dubai');
+      // now is the morning of 2024-06-12 in New York (home), so day index 1 is
+      // "today" — and it is a destination day, which the live zone overrides.
+      final cands = await engine.candidatesFor(
+        nyToLondon(),
+        now: DateTime.utc(2024, 6, 12, 4, 30),
+        trigger: RescheduleTrigger.locationChanged,
+      );
 
-    final today = byDay(cands, 1);
-    expect(today.iana, 'Asia/Dubai', reason: 'live location wins for today');
-    expect(today.source, ZoneSource.liveLocation);
+      final today = byDay(cands, 1);
+      expect(today.iana, 'Asia/Dubai', reason: 'live location wins for today');
+      expect(today.source, ZoneSource.liveLocation);
 
-    // Other days are unaffected by the live signal.
-    expect(byDay(cands, 2).iana, 'Europe/London');
-    expect(byDay(cands, 4).iana, 'America/New_York');
-  });
+      // Other days are unaffected by the live signal.
+      expect(byDay(cands, 2).iana, 'Europe/London');
+      expect(byDay(cands, 4).iana, 'America/New_York');
+    },
+  );
 
   test('"today" is the home-zone date, not the UTC date', () async {
     final engine = engineWith(location: 'Asia/Dubai');
@@ -85,8 +87,11 @@ void main() {
       trigger: RescheduleTrigger.locationChanged,
     );
 
-    expect(byDay(cands, 1).iana, 'Europe/London',
-        reason: 'day 1 is tomorrow at home, so the live override must not apply');
+    expect(
+      byDay(cands, 1).iana,
+      'Europe/London',
+      reason: 'day 1 is tomorrow at home, so the live override must not apply',
+    );
   });
 
   test('today without a live signal falls through to the phase zone', () async {
