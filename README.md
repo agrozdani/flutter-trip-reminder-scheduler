@@ -2,7 +2,7 @@
 
 ![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter&logoColor=white)
 ![Platforms](https://img.shields.io/badge/platforms-Android%20%7C%20iOS-555)
-![Tests](https://img.shields.io/badge/tests-84%20passing-3DA639)
+![Tests](https://img.shields.io/badge/tests-86%20passing-3DA639)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
 A reference implementation of **timezone-aware local notification scheduling** for
@@ -406,7 +406,8 @@ no separate `pod install` step.
    mutated for the UI) — until the next reconcile prunes it.
 3. **Exercise the hard paths** (Simulate tab):
    - *Simulate "I'm in zone X today"* sets a high-confidence live signal; watch only
-     today's reminder switch zones on the Upcoming screen.
+     today's reminder switch zones on the Upcoming screen. If the reminder time has
+     already passed in that zone today, today's reminder is dropped instead.
    - *Simulate a device timezone change* overrides the zone the resolver's device tier
      reports and re-runs the scheduler with the `timezoneChanged` trigger (a
      low-priority trigger, so it is skipped if another reschedule ran in the last 5 s).
@@ -463,7 +464,7 @@ Ordered from the most approachable to the most involved.
 flutter test
 ```
 
-The 84 tests need no device, radio, or network — fakes are injected through the ports,
+The 86 tests need no device, radio, or network — fakes are injected through the ports,
 platform channels are mocked, and scheduling time is controlled with `package:clock` /
 `fakeAsync`.
 
@@ -502,8 +503,9 @@ platform channels are mocked, and scheduling time is controlled with `package:cl
   *Save* adds the trip once and returns to the home shell; a failed reschedule still
   closes the form, and says the reminders weren't scheduled; *Back* is held while a
   save is in flight, so it can't pop the home shell or lose that message, and nothing
-  can be opened over the form to take the save's own pop; a trip added over unreadable
-  stored trips is not saved.
+  can be opened over the form to take the save's own pop; its zone pickers fit a
+  320 dp screen with text at 200%; a trip added over unreadable stored trips is not
+  saved.
 - [`trips_controller_test.dart`](test/trips_controller_test.dart) — a trip added
   before the stored trips have loaded is appended to them, not saved over them; two
   deletes close together both stick; stored trips that can't be read are reported,
@@ -511,6 +513,8 @@ platform channels are mocked, and scheduling time is controlled with `package:cl
 - [`trips_screen_test.dart`](test/trips_screen_test.dart) — a failed delete says
   whether the trip went: kept when it couldn't be saved, deleted when only the
   reschedule failed.
+- [`simulate_screen_test.dart`](test/simulate_screen_test.dart) — the Simulate tab's
+  zone pickers fit a 320 dp screen with text at 200%.
 - [`home_shell_test.dart`](test/home_shell_test.dart) — a failed launch-time or
   resume reschedule is reported rather than left unhandled, and the Upcoming view
   still refreshes, as it does after a successful resume.

@@ -61,12 +61,19 @@ class _TripFormScreenState extends ConsumerState<TripFormScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          // Both pickers take the form's width and shorten a name that
+          // doesn't fit, rather than sizing to the longest name and
+          // overflowing a narrow screen.
           _Label('Home zone'),
           DropdownButtonFormField<String>(
             initialValue: _homeIana,
+            isExpanded: true,
             items: [
               for (final z in kCommonZones)
-                DropdownMenuItem(value: z, child: Text(z)),
+                DropdownMenuItem(
+                  value: z,
+                  child: Text(z, maxLines: 1, overflow: TextOverflow.ellipsis),
+                ),
             ],
             onChanged: (v) => setState(() => _homeIana = v ?? _homeIana),
           ),
@@ -74,9 +81,13 @@ class _TripFormScreenState extends ConsumerState<TripFormScreen> {
           _Label('Destination country'),
           DropdownButtonFormField<String>(
             initialValue: _country,
+            isExpanded: true,
             items: [
               for (final c in countries)
-                DropdownMenuItem(value: c, child: Text(c)),
+                DropdownMenuItem(
+                  value: c,
+                  child: Text(c, maxLines: 1, overflow: TextOverflow.ellipsis),
+                ),
             ],
             onChanged: (v) => setState(() => _country = v),
           ),
