@@ -5,6 +5,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:timezone/data/latest_all.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
+import 'package:trip_reminder_scheduler/src/core/logging.dart';
 import 'package:trip_reminder_scheduler/src/core/models/reminder_time.dart';
 import 'package:trip_reminder_scheduler/src/core/models/reschedule_trigger.dart';
 import 'package:trip_reminder_scheduler/src/core/models/resolved_zone.dart';
@@ -47,12 +48,16 @@ void main() {
     scheduledAtUtc: DateTime.utc(2024, 1, 1),
   );
 
-  Future<void> scheduleAt(DateTime now, ScheduledReminder reminder) =>
-      withClock(Clock.fixed(now), () {
-        return FlutterNotificationGateway(
-          FlutterLocalNotificationsPlugin(),
-        ).schedule(reminder, title: 'title', body: 'body');
-      });
+  Future<void> scheduleAt(
+    DateTime now,
+    ScheduledReminder reminder, {
+    Logger? log,
+  }) => withClock(Clock.fixed(now), () {
+    return FlutterNotificationGateway(
+      FlutterLocalNotificationsPlugin(),
+      log: log,
+    ).schedule(reminder, title: 'title', body: 'body');
+  });
 
   test(
     'a fall-back overlap reminder reaches the platform as one exact instant',
@@ -92,12 +97,26 @@ void main() {
       // A second after the instant, the plugin would reject it as a past date
       // and abort the run. Instead it goes out two seconds from now, replacing
       // any older pending entry with the same id.
-      await scheduleAt(fire.add(const Duration(seconds: 1)), reminderAt(fire));
+      final buffer = LogBuffer();
+      await scheduleAt(
+        fire.add(const Duration(seconds: 1)),
+        reminderAt(fire),
+        log: Logger([buffer]),
+      );
 
       final args = calls.single.arguments as Map<Object?, Object?>;
       expect(args['id'], 7);
       expect(args['timeZoneName'], 'UTC');
       expect(args['scheduledDateTime'], '2024-06-12T09:00:03');
+      // If it fired before the run reached it, it fires again: say so.
+      final clamped = buffer.records.single;
+      expect(clamped.event, 'schedule.clamped');
+      expect(clamped.level, LogLevel.warning);
+      expect(clamped.fields, {
+        'id': 7,
+        'due': fire,
+        'firesAt': DateTime.utc(2024, 6, 12, 9, 0, 3),
+      });
 
       // Still half a second ahead is too close to call: it goes out two seconds
       // from now as well.

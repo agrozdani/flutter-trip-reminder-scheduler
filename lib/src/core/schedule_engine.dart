@@ -1,7 +1,9 @@
 import 'package:timezone/timezone.dart' as tz;
 
+import 'logging.dart';
 import 'models/reconciliation_plan.dart';
 import 'models/reminder_registry.dart';
+import 'models/reminder_time.dart';
 import 'models/reschedule_trigger.dart';
 import 'models/resolved_zone.dart';
 import 'models/scheduled_reminder.dart';
@@ -20,9 +22,11 @@ class ScheduleEngine {
     required this.resolver,
     this.maxScheduled = 64,
     this.microOffset = const Duration(seconds: 5),
-  });
+    Logger? log,
+  }) : _log = log ?? Logger.silent;
 
   final TimezoneResolver resolver;
+  final Logger _log;
 
   /// Hard cap on pending notifications. iOS keeps at most ~64 pending local
   /// notifications, so we never schedule more than this many, soonest first.
@@ -73,10 +77,18 @@ class ScheduleEngine {
     // lands just after a group's first reminder fires lose the siblings nudged
     // a few seconds behind it — their un-nudged instant has passed too — and
     // the diff would then cancel them while they are still pending.
-    final capped = _applyMicroOffsets(window)
-        .where((r) => r.fireInstantUtc.isAfter(nowUtc))
-        .take(maxScheduled)
-        .toList();
+    final future = _applyMicroOffsets(
+      window,
+      nowUtc,
+    ).where((r) => r.fireInstantUtc.isAfter(nowUtc)).toList();
+    if (future.length > maxScheduled) {
+      _log.warning('cap', {
+        'wanted': future.length,
+        'kept': maxScheduled,
+        'firstDropped': future[maxScheduled].fireInstantUtc,
+      });
+    }
+    final capped = future.take(maxScheduled).toList();
 
     final plan = _diff(registry, capped, nowUtc);
     final newRegistry = registry.copyWith(
@@ -134,6 +146,30 @@ class ScheduleEngine {
       lastKnownIana: lastKnownIana,
       localeCountry: localeCountry,
     );
+    _log.debug('zones', {
+      'trip': trip.id,
+      'home': _describe(home),
+      'destination': _describe(destination),
+      'today': _describe(todayZone),
+    });
+    // The UI shows every reminder's zone, but not that it wasn't the one the
+    // trip asked for.
+    if (home.source != ZoneSource.userChosen) {
+      _log.warning('zone.home.fallback', {
+        'trip': trip.id,
+        'wanted': trip.homeIana,
+        'got': _describe(home),
+        'reason': home.fallbackReason,
+      });
+    }
+    if (destination.source != ZoneSource.countryHeuristic) {
+      _log.warning('zone.destination.fallback', {
+        'trip': trip.id,
+        'country': trip.destinationCountry,
+        'got': _describe(destination),
+        'reason': destination.fallbackReason,
+      });
+    }
 
     final start = _dateOnly(trip.startDate);
     final end = _dateOnly(trip.endDate);
@@ -170,6 +206,18 @@ class ScheduleEngine {
         trip.reminderTime.hour,
         trip.reminderTime.minute,
       );
+      // WallClock only moves the wall time to step over a spring-forward gap.
+      if (fire.isAfter(nowUtc) &&
+          (fire.hour != trip.reminderTime.hour ||
+              fire.minute != trip.reminderTime.minute)) {
+        _log.debug('dst.gap', {
+          'trip': trip.id,
+          'day': i,
+          'zone': zone.iana,
+          'wanted': trip.reminderTime.formatted,
+          'firesAt': ReminderTime(fire.hour, fire.minute).formatted,
+        });
+      }
       out.add(
         ScheduledReminder(
           id: deterministicId(trip.id, i),
@@ -212,7 +260,10 @@ class ScheduleEngine {
   /// order: the first keeps its instant, each later one moves one step more.
   /// The offset is a reminder's rank within its whole group, fired members
   /// included, so it never shifts as the group fires.
-  List<ScheduledReminder> _applyMicroOffsets(List<ScheduledReminder> sorted) {
+  List<ScheduledReminder> _applyMicroOffsets(
+    List<ScheduledReminder> sorted,
+    DateTime nowUtc,
+  ) {
     final perMinute = <int, int>{};
     final out = <ScheduledReminder>[];
     for (final reminder in sorted) {
@@ -222,11 +273,19 @@ class ScheduleEngine {
       if (seen == 0) {
         out.add(reminder);
       } else {
-        out.add(
-          reminder.copyWith(
-            fireInstantUtc: reminder.fireInstantUtc.add(microOffset * seen),
-          ),
-        );
+        final nudged = reminder.fireInstantUtc.add(microOffset * seen);
+        // From the 13th member on, spacing pushes it into the next minute,
+        // where it can land on another reminder's exact instant.
+        if (nudged.millisecondsSinceEpoch ~/ 60000 != minute &&
+            nudged.isAfter(nowUtc)) {
+          _log.warning('spacing.spill', {
+            'id': reminder.id,
+            'trip': reminder.tripId,
+            'day': reminder.dayIndex,
+            'firesAt': nudged,
+          });
+        }
+        out.add(reminder.copyWith(fireInstantUtc: nudged));
       }
     }
     return out;
@@ -270,6 +329,9 @@ class ScheduleEngine {
   }
 
   static DateTime _dateOnly(DateTime d) => DateTime.utc(d.year, d.month, d.day);
+
+  static String _describe(ResolvedZone z) =>
+      '${z.iana}(${z.source.name},${z.confidence.name})';
 }
 
 /// The output of [ScheduleEngine.reconcile]: what to change, and the registry

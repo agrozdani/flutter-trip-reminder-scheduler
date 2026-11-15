@@ -1,6 +1,7 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
 
+import '../core/logging.dart';
 import '../core/models/scheduled_reminder.dart';
 import '../core/ports/clock.dart';
 import '../core/ports/notification_gateway.dart';
@@ -12,9 +13,11 @@ import '../core/ports/notification_gateway.dart';
 /// expressed in UTC — the OS fires at that instant regardless of any later
 /// device-timezone change, which is the whole point of storing instants.
 class FlutterNotificationGateway implements NotificationGateway {
-  FlutterNotificationGateway(this._plugin);
+  FlutterNotificationGateway(this._plugin, {Logger? log})
+    : _log = log ?? Logger.silent;
 
   final FlutterLocalNotificationsPlugin _plugin;
+  final Logger _log;
 
   static const String channelId = 'trip_reminders';
   static const String channelName = 'Trip reminders';
@@ -48,9 +51,16 @@ class FlutterNotificationGateway implements NotificationGateway {
     // Scheduling it under its id, rather than skipping it, also replaces any
     // older pending entry for that id.
     final earliest = clock.now().toUtc().add(const Duration(seconds: 2));
-    final fireAt = reminder.fireInstantUtc.isBefore(earliest)
-        ? earliest
-        : reminder.fireInstantUtc;
+    var fireAt = reminder.fireInstantUtc;
+    if (fireAt.isBefore(earliest)) {
+      // If it had already fired, this fires it a second time.
+      _log.warning('schedule.clamped', {
+        'id': reminder.id,
+        'due': reminder.fireInstantUtc,
+        'firesAt': earliest,
+      });
+      fireAt = earliest;
+    }
 
     // Express the instant in UTC, not the reminder's zone. The plugin sends the
     // platform a wall-clock string plus a zone name and lets it rebuild the
@@ -80,6 +90,7 @@ class FlutterNotificationGateway implements NotificationGateway {
   @override
   Future<List<int>> pendingIds() async {
     final pending = await _plugin.pendingNotificationRequests();
+    _log.debug('pending', {'count': pending.length});
     return pending.map((p) => p.id).toList();
   }
 }

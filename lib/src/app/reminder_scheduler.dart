@@ -1,4 +1,5 @@
 import '../core/launch_recovery.dart';
+import '../core/logging.dart';
 import '../core/models/reschedule_trigger.dart';
 import '../core/models/scheduled_reminder.dart';
 import '../core/models/trip.dart';
@@ -26,10 +27,15 @@ class ReminderScheduler {
     this._recovery = const LaunchRecovery(),
     String Function(ScheduledReminder reminder)? title,
     String Function(ScheduledReminder reminder)? body,
+    Logger? log,
   }) : _store = registryStore,
        _title = title ?? _defaultTitle,
-       _body = body ?? _defaultBody {
-    _coordinator = RescheduleCoordinator(onReschedule: _perform);
+       _body = body ?? _defaultBody,
+       _log = log ?? Logger.silent {
+    _coordinator = RescheduleCoordinator(
+      onReschedule: _performLogged,
+      log: _log.tagged('coordinator'),
+    );
   }
 
   final ScheduleEngine _engine;
@@ -39,8 +45,12 @@ class ReminderScheduler {
   final LaunchRecovery _recovery;
   final String Function(ScheduledReminder) _title;
   final String Function(ScheduledReminder) _body;
+  final Logger _log;
 
   late final RescheduleCoordinator _coordinator;
+
+  /// Numbers this process's runs, so a run's log entries can be told apart.
+  int _runs = 0;
 
   /// Whether this process has handed the whole desired set to the OS yet.
   bool _handedOver = false;
@@ -67,14 +77,35 @@ class ReminderScheduler {
       pendingIds: pending,
       now: clock.now().toUtc(),
     );
+    _log.info('launch', {
+      'reason': trigger ?? 'none',
+      'registered': registry.count,
+      'pending': pending.length,
+      'lastScheduleAt': registry.lastScheduleAtUtc,
+      'lastZone': registry.lastZoneId,
+    });
     await request(trigger ?? RescheduleTrigger.appResume);
     return trigger;
   }
 
-  Future<void> _perform(RescheduleTrigger trigger) async {
+  /// Runs [_perform] and logs `run.done` with what it changed, or
+  /// `run.failed` with the stage it stopped in and what it had changed by then.
+  Future<void> _performLogged(RescheduleTrigger trigger) async {
+    final run = _RunProgress(++_runs, trigger, clock.stopwatch()..start());
+    try {
+      await _perform(trigger, run);
+      _log.info('run.done', run.fields());
+    } catch (error, stack) {
+      _log.error('run.failed', run.fields(), error, stack);
+      rethrow;
+    }
+  }
+
+  Future<void> _perform(RescheduleTrigger trigger, _RunProgress run) async {
     final registry = await _store.load();
     final trips = await _loadTrips();
 
+    run.stage = 'reconcile';
     final result = await _engine.reconcile(
       registry: registry,
       trips: trips,
@@ -95,6 +126,11 @@ class ReminderScheduler {
     final toSchedule = handOver
         ? result.registry.reminders
         : result.plan.toSchedule;
+    run
+      ..stage = 'apply'
+      ..handOver = handOver
+      ..toCancel = result.plan.toCancel.length
+      ..toSchedule = toSchedule.length;
 
     // What the OS has been told so far. If a call fails partway, this is
     // saved instead of the new registry, so the registry still matches the
@@ -106,6 +142,7 @@ class ReminderScheduler {
       for (final id in result.plan.toCancel) {
         await _gateway.cancel(id);
         applied.remove(id);
+        run.cancelled++;
       }
       for (final reminder in toSchedule) {
         await _gateway.schedule(
@@ -114,16 +151,53 @@ class ReminderScheduler {
           body: _body(reminder),
         );
         applied[reminder.id] = reminder;
+        run.scheduled++;
       }
     } catch (_) {
       await _store.save(registry.copyWith(reminders: [...applied.values]));
       rethrow;
     }
+    run.stage = 'save';
     await _store.save(result.registry);
     _handedOver = true;
+    run
+      ..stage = null
+      ..trips = trips.length
+      ..unchanged = result.plan.unchanged.length
+      ..registered = result.registry.count;
   }
 
   static String _defaultTitle(ScheduledReminder _) => 'Trip reminder';
   static String _defaultBody(ScheduledReminder _) =>
       'Your daily reminder for the trip.';
+}
+
+/// What one run has done so far, for its `run.done` or `run.failed` entry.
+class _RunProgress {
+  _RunProgress(this.run, this.trigger, this.watch);
+
+  final int run;
+  final RescheduleTrigger trigger;
+  final Stopwatch watch;
+
+  /// Where the run is; null once it has finished.
+  String? stage = 'load';
+  bool? handOver;
+  int toCancel = 0, toSchedule = 0, cancelled = 0, scheduled = 0;
+  int? trips, unchanged, registered;
+
+  Map<String, Object?> fields() => {
+    'run': run,
+    'trigger': trigger,
+    'stage': ?stage,
+    'handOver': ?handOver,
+    'trips': ?trips,
+    'toCancel': toCancel,
+    'toSchedule': toSchedule,
+    'cancelled': cancelled,
+    'scheduled': scheduled,
+    'unchanged': ?unchanged,
+    'registered': ?registered,
+    'took': watch.elapsed,
+  };
 }

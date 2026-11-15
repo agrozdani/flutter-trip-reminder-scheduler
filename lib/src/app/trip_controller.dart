@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/logging.dart';
 import '../core/models/reschedule_trigger.dart';
 import '../core/models/trip.dart';
 import 'providers.dart';
@@ -23,13 +24,36 @@ final tripsControllerProvider =
     );
 
 class TripsController extends AsyncNotifier<List<Trip>> {
+  Logger get _log => ref.read(loggerProvider).tagged('trips');
+
   @override
-  Future<List<Trip>> build() => ref.read(tripStoreProvider).load();
+  Future<List<Trip>> build() async {
+    final log = _log;
+    try {
+      return await ref.read(tripStoreProvider).load();
+    } catch (error, stack) {
+      log.error('load.failed', const {}, error, stack);
+      rethrow;
+    }
+  }
 
-  Future<void> addTrip(Trip trip) => _mutate((current) => [...current, trip]);
+  Future<void> addTrip(Trip trip) {
+    _log.info('add', {
+      'trip': trip.id,
+      'home': trip.homeIana,
+      'destination': trip.destinationCountry,
+      'from': _date(trip.startDate),
+      'to': _date(trip.endDate),
+      'at': trip.reminderTime.formatted,
+      'buffers': '${trip.preBufferDays}/${trip.postBufferDays}',
+    });
+    return _mutate((current) => [...current, trip]);
+  }
 
-  Future<void> removeTrip(String id) =>
-      _mutate((current) => current.where((t) => t.id != id).toList());
+  Future<void> removeTrip(String id) {
+    _log.info('remove', {'trip': id});
+    return _mutate((current) => current.where((t) => t.id != id).toList());
+  }
 
   /// The end of the queue of saves, which never completes with an error.
   Future<void> _saves = Future<void>.value();
@@ -42,9 +66,15 @@ class TripsController extends AsyncNotifier<List<Trip>> {
   /// for the stored trips, rather than starting from an empty list while the
   /// load is still in flight and saving over them.
   Future<void> _mutate(List<Trip> Function(List<Trip> current) change) async {
+    final log = _log;
     final saved = _saves.then((_) async {
       final trips = change(await future);
-      await ref.read(tripStoreProvider).save(trips);
+      try {
+        await ref.read(tripStoreProvider).save(trips);
+      } catch (error, stack) {
+        log.error('save.failed', {'trips': trips.length}, error, stack);
+        rethrow;
+      }
       state = AsyncData(trips);
     });
     _saves = saved.catchError((Object _) {});
@@ -61,4 +91,6 @@ class TripsController extends AsyncNotifier<List<Trip>> {
       ref.invalidate(upcomingRemindersProvider);
     }
   }
+
+  static String _date(DateTime d) => d.toIso8601String().substring(0, 10);
 }

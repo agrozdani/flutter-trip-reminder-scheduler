@@ -54,6 +54,7 @@ class _HomeShellState extends ConsumerState<HomeShell>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    ref.read(loggerProvider).tagged('app').debug('lifecycle', {'state': state});
     // Only a return to the foreground reschedules. The coordinator debounces and
     // de-duplicates, so repeated resumes never storm; and because a reschedule is
     // an idempotent reconcile, a pass with nothing to change costs no OS calls.

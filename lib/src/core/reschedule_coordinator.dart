@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'logging.dart';
 import 'models/reschedule_trigger.dart';
 import 'ports/clock.dart';
 
@@ -26,9 +27,11 @@ class RescheduleCoordinator {
     required this._onReschedule,
     this.debounce = const Duration(milliseconds: 300),
     this.dedupWindow = const Duration(seconds: 5),
-  });
+    Logger? log,
+  }) : _log = log ?? Logger.silent;
 
   final RescheduleCallback _onReschedule;
+  final Logger _log;
   final Duration debounce;
   final Duration dedupWindow;
 
@@ -48,6 +51,7 @@ class RescheduleCoordinator {
   /// run that covers this request has finished.
   Future<void> request(RescheduleTrigger trigger) {
     _pending = _moreImportantOf(_pending, trigger);
+    _log.debug('request', {'trigger': trigger, 'runAs': _pending});
     if (_queued) return _outcome;
 
     _queued = true;
@@ -82,6 +86,11 @@ class RescheduleCoordinator {
     final withinWindow = last != null && now.difference(last) < dedupWindow;
     if (withinWindow && !trigger.isHighPriority) {
       _skippedCount++;
+      _log.info('skipped', {
+        'trigger': trigger,
+        'sinceLastRun': now.difference(last),
+        'window': dedupWindow,
+      });
       return;
     }
 
