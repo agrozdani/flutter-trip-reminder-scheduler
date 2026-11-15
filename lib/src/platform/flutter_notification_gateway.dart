@@ -73,6 +73,10 @@ class FlutterNotificationGateway implements NotificationGateway {
   @override
   Future<void> cancel(int id) => _plugin.cancel(id: id);
 
+  /// On iOS this is what the notification center holds. On Android the plugin
+  /// can't query `AlarmManager`, so it answers from its own saved copy of what
+  /// it was asked to schedule: a loss the plugin didn't see (the alarms cleared
+  /// by a force-stop, say) still reads as pending here.
   @override
   Future<List<int>> pendingIds() async {
     final pending = await _plugin.pendingNotificationRequests();

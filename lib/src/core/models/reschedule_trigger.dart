@@ -28,7 +28,7 @@ enum RescheduleTrigger {
   /// Periodic top-up so the schedule never drifts too stale.
   periodicRebalance,
 
-  /// App returned to the foreground.
+  /// App returned to the foreground, or launched with nothing to recover.
   appResume;
 
   /// High-priority triggers bypass the short de-duplication window so a user

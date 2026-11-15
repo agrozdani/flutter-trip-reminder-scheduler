@@ -60,6 +60,13 @@ void main() {
     ));
   }
 
+  // Lets the launch-time run finish, then waits out the coordinator's 5 s
+  // dedup window so a resume that follows isn't skipped as a repeat of it.
+  Future<void> pumpPastLaunchRun(WidgetTester tester) async {
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump(const Duration(seconds: 6));
+  }
+
   // Collects what FlutterError reports while [body] runs, restoring the
   // handler before returning so a later failing expect is reported normally.
   Future<List<FlutterErrorDetails>> reportedDuring(
@@ -122,9 +129,10 @@ void main() {
 
   testWidgets('a failed resume reschedule is reported and the view still refreshes',
       (tester) async {
-    // Just scheduled with nothing expected pending: launch recovery is a no-op.
+    // Just scheduled with nothing expected pending: launch finds no recovery
+    // reason and its run is a routine one.
     await pumpApp(tester, ReminderRegistry(lastScheduleAtUtc: clock.now().toUtc()));
-    await tester.pump(const Duration(seconds: 1));
+    await pumpPastLaunchRun(tester);
     expect(upcoming('No reminders scheduled yet'), findsOneWidget);
 
     failRuns = true;
@@ -149,7 +157,7 @@ void main() {
   testWidgets('a resume reschedule refreshes the view once it has run',
       (tester) async {
     await pumpApp(tester, ReminderRegistry(lastScheduleAtUtc: clock.now().toUtc()));
-    await tester.pump(const Duration(seconds: 1));
+    await pumpPastLaunchRun(tester);
     expect(upcoming('No reminders scheduled yet'), findsOneWidget);
 
     // A trip for tomorrow, so the resume run itself saves one reminder.

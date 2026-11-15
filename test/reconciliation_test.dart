@@ -211,6 +211,49 @@ void main() {
     );
   });
 
+  test('a reconcile inside the spacing window keeps the nudged reminders',
+      () async {
+    final engine = ScheduleEngine(resolver: resolver());
+    Trip oneDay(String id) => Trip(
+          id: id,
+          homeIana: 'America/New_York',
+          destinationCountry: 'United Kingdom',
+          startDate: DateTime.utc(2024, 6, 12),
+          endDate: DateTime.utc(2024, 6, 12),
+          reminderTime: const ReminderTime(9, 0),
+        );
+    final trips = [oneDay('A'), oneDay('B'), oneDay('C')];
+    final first = await engine.reconcile(
+      registry: ReminderRegistry.empty,
+      trips: trips,
+      now: now,
+      trigger: RescheduleTrigger.initialSchedule,
+    );
+
+    // A fires at 08:00:00, B at 08:00:05, C at 08:00:10. Tapping A's
+    // notification resumes the app, which reconciles a second or two later —
+    // while B and C are still pending.
+    final base = DateTime.utc(2024, 6, 12, 8, 0);
+    final second = await engine.reconcile(
+      registry: first.registry,
+      trips: trips,
+      now: base.add(const Duration(seconds: 2)),
+      trigger: RescheduleTrigger.appResume,
+    );
+
+    expect(second.plan.toCancel, isEmpty,
+        reason: 'B and C are seconds from firing; cancelling loses them');
+    expect(second.plan.toSchedule, isEmpty);
+    expect(
+      {for (final r in second.registry.reminders) r.tripId: r.fireInstantUtc},
+      {
+        'B': base.add(const Duration(seconds: 5)),
+        'C': base.add(const Duration(seconds: 10)),
+      },
+      reason: 'spacing does not depend on which siblings have already fired',
+    );
+  });
+
   test('the cap keeps the soonest reminders across trips, not input order',
       () async {
     final engine = ScheduleEngine(resolver: resolver(), maxScheduled: 10);

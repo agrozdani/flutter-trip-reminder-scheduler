@@ -44,11 +44,13 @@ class ScheduleEngine {
   }) async {
     final nowUtc = now.toUtc();
 
-    final desired = <ScheduledReminder>[];
+    // Every day of every trip, past days included: spacing has to see a whole
+    // same-minute group to give each member the same offset on every run.
+    final window = <ScheduledReminder>[];
     for (final trip in trips) {
-      desired.addAll(await candidatesFor(
+      window.addAll(await _windowFor(
         trip,
-        now: nowUtc,
+        nowUtc: nowUtc,
         trigger: trigger,
         lastKnownIana: lastKnownIana,
         localeCountry: localeCountry,
@@ -57,7 +59,7 @@ class ScheduleEngine {
 
     // Deterministic order: by instant, then a stable tie-break so micro-offset
     // assignment and the cap are reproducible run to run.
-    desired.sort((a, b) {
+    window.sort((a, b) {
       final byInstant = a.fireInstantUtc.compareTo(b.fireInstantUtc);
       if (byInstant != 0) return byInstant;
       final byTrip = a.tripId.compareTo(b.tripId);
@@ -65,8 +67,14 @@ class ScheduleEngine {
       return a.dayIndex.compareTo(b.dayIndex);
     });
 
-    final spaced = _applyMicroOffsets(desired);
-    final capped = spaced.take(maxScheduled).toList();
+    // Drop the past only after spacing. Dropping first would let a run that
+    // lands just after a group's first reminder fires lose the siblings nudged
+    // a few seconds behind it — their un-nudged instant has passed too — and
+    // the diff would then cancel them while they are still pending.
+    final capped = _applyMicroOffsets(window)
+        .where((r) => r.fireInstantUtc.isAfter(nowUtc))
+        .take(maxScheduled)
+        .toList();
 
     final plan = _diff(registry, capped, nowUtc);
     final newRegistry = registry.copyWith(
@@ -84,6 +92,8 @@ class ScheduleEngine {
   ///   any phase);
   /// - **destination days** (between start and end) → the destination zone;
   /// - **home days** (the pre/post buffer) → the home zone.
+  ///
+  /// Days whose instant has already passed are left out.
   Future<List<ScheduledReminder>> candidatesFor(
     Trip trip, {
     required DateTime now,
@@ -92,7 +102,27 @@ class ScheduleEngine {
     String? localeCountry,
   }) async {
     final nowUtc = now.toUtc();
+    final window = await _windowFor(
+      trip,
+      nowUtc: nowUtc,
+      trigger: trigger,
+      lastKnownIana: lastKnownIana,
+      localeCountry: localeCountry,
+    );
+    return [
+      for (final r in window)
+        if (r.fireInstantUtc.isAfter(nowUtc)) r,
+    ];
+  }
 
+  /// [candidatesFor] before the past is dropped: every day of the window.
+  Future<List<ScheduledReminder>> _windowFor(
+    Trip trip, {
+    required DateTime nowUtc,
+    required RescheduleTrigger trigger,
+    String? lastKnownIana,
+    String? localeCountry,
+  }) async {
     // Resolve the three candidate zones once per trip.
     final home = await resolver.resolveHomeZone(trip.homeIana);
     final destination = await resolver.resolveForDestination(trip.destinationCountry);
@@ -136,14 +166,9 @@ class ScheduleEngine {
         trip.reminderTime.hour,
         trip.reminderTime.minute,
       );
-      final fireUtc = fire.toUtc();
-
-      // Never schedule something already in the past.
-      if (!fireUtc.isAfter(nowUtc)) continue;
-
       out.add(ScheduledReminder(
         id: deterministicId(trip.id, i),
-        fireInstantUtc: fireUtc,
+        fireInstantUtc: fire.toUtc(),
         iana: zone.iana,
         source: zone.source,
         confidence: zone.confidence,
@@ -179,6 +204,8 @@ class ScheduleEngine {
 
   /// Push reminders sharing a minute apart by [microOffset] each, in sort
   /// order: the first keeps its instant, each later one moves one step more.
+  /// The offset is a reminder's rank within its whole group, fired members
+  /// included, so it never shifts as the group fires.
   List<ScheduledReminder> _applyMicroOffsets(List<ScheduledReminder> sorted) {
     final perMinute = <int, int>{};
     final out = <ScheduledReminder>[];

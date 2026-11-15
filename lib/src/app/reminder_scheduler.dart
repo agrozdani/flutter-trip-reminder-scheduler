@@ -1,5 +1,4 @@
 import '../core/launch_recovery.dart';
-import '../core/models/reminder_registry.dart';
 import '../core/models/reschedule_trigger.dart';
 import '../core/models/scheduled_reminder.dart';
 import '../core/models/trip.dart';
@@ -43,14 +42,23 @@ class ReminderScheduler {
 
   late final RescheduleCoordinator _coordinator;
 
+  /// Whether this process has handed the whole desired set to the OS yet.
+  bool _handedOver = false;
+
   int get skippedCount => _coordinator.skippedCount;
 
   /// Route a trigger through the debounced/serialized/de-duplicated entry point.
   Future<void> request(RescheduleTrigger trigger) =>
       _coordinator.request(trigger);
 
-  /// Inspect the persisted state at launch and reschedule if recovery is needed
-  /// (OS-cleared, cold start, periodic top-up, or a DST shift while idle).
+  /// Run the launch-time reschedule, and return the recovery reason found in
+  /// the persisted state (OS-cleared, cold start, periodic top-up, or a DST
+  /// shift while idle), or null if nothing looked wrong.
+  ///
+  /// It reschedules either way: a process's first run hands the whole schedule
+  /// back to the OS (see [_perform]), and that must not wait for the next
+  /// resume or edit. With no recovery reason the run is an ordinary
+  /// [RescheduleTrigger.appResume].
   Future<RescheduleTrigger?> recoverOnLaunch() async {
     final registry = await _store.load();
     final pending = await _gateway.pendingIds();
@@ -59,9 +67,7 @@ class ReminderScheduler {
       pendingIds: pending,
       now: clock.now().toUtc(),
     );
-    if (trigger != null) {
-      await request(trigger);
-    }
+    await request(trigger ?? RescheduleTrigger.appResume);
     return trigger;
   }
 
@@ -69,32 +75,35 @@ class ReminderScheduler {
     final registry = await _store.load();
     final trips = await _loadTrips();
 
-    // The fire-time diff assumes the registry reflects what the OS actually has
-    // pending. That holds for every trigger except [osCleared], where the OS
-    // reported nothing pending although the registry expected future
-    // reminders. There we reconcile against an empty baseline so the whole
-    // desired set is treated as new. That baseline also yields nothing to
-    // cancel, which is right: nothing is pending, and a blanket cancel-all
-    // would only dismiss notifications already delivered.
-    final osCleared = trigger == RescheduleTrigger.osCleared;
-    final baseline = osCleared ? ReminderRegistry.empty : registry;
-
     final result = await _engine.reconcile(
-      registry: baseline,
+      registry: registry,
       trips: trips,
       now: clock.now().toUtc(),
       trigger: trigger,
       lastKnownIana: registry.lastZoneId,
     );
 
+    // Scheduling only the diff assumes the registry mirrors what the OS has
+    // pending. Two cases break that. On [RescheduleTrigger.osCleared] the OS
+    // reported its pending set gone. And on a process's first run nobody can
+    // tell: Android's pending list is the plugin's own record, so alarms lost
+    // to a force-stop still read as pending, and Android 14 and older never
+    // re-arm them. In both, hand over the whole desired set instead. Ids are
+    // deterministic, so that overwrites what survived rather than duplicating
+    // it. What to cancel still comes from the diff.
+    final handOver = !_handedOver || trigger == RescheduleTrigger.osCleared;
+    final toSchedule =
+        handOver ? result.registry.reminders : result.plan.toSchedule;
+
     for (final id in result.plan.toCancel) {
       await _gateway.cancel(id);
     }
-    for (final reminder in result.plan.toSchedule) {
+    for (final reminder in toSchedule) {
       await _gateway.schedule(reminder,
           title: _title(reminder), body: _body(reminder));
     }
     await _store.save(result.registry);
+    _handedOver = true;
   }
 
   static String _defaultTitle(ScheduledReminder _) => 'Trip reminder';
