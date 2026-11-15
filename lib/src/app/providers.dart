@@ -4,6 +4,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../core/logging.dart';
 import '../core/models/reminder_registry.dart';
 import '../core/ports/clock.dart';
 import '../core/ports/country_zone_map.dart';
@@ -31,6 +32,22 @@ final notificationPluginProvider = Provider<FlutterLocalNotificationsPlugin>(
       throw UnimplementedError('Override notificationPluginProvider in main()'),
 );
 
+// --- Logging -------------------------------------------------------------------
+
+/// The in-app log the log screen shows. `main()` overrides it with the buffer
+/// it made before startup, so startup is in it too.
+final logBufferProvider = Provider<LogBuffer>((ref) {
+  final buffer = LogBuffer();
+  ref.onDispose(buffer.close);
+  return buffer;
+});
+
+/// The root logger; each component writes under its own [Logger.tagged] name.
+/// `main()` overrides it with one that also prints to the console.
+final loggerProvider = Provider<Logger>(
+  (ref) => Logger([ref.watch(logBufferProvider)]),
+);
+
 // --- Ports (adapters wrapping the platform plugins) ----------------------------
 
 /// Concrete type exposed so the simulate screen can set the live zone.
@@ -40,7 +57,11 @@ final locationZoneSourceProvider = Provider<ManualLocationZoneSource>(
 
 /// Concrete type exposed so the simulate screen can set the device override.
 final deviceTimezoneSourceProvider = Provider<OverridableDeviceTimezoneSource>(
-  (ref) => OverridableDeviceTimezoneSource(const FlutterTimezoneDeviceSource()),
+  (ref) => OverridableDeviceTimezoneSource(
+    FlutterTimezoneDeviceSource(
+      log: ref.watch(loggerProvider).tagged('device'),
+    ),
+  ),
 );
 
 final countryZoneMapProvider = Provider<CountryZoneMap>(
@@ -48,11 +69,17 @@ final countryZoneMapProvider = Provider<CountryZoneMap>(
 );
 
 final gatewayProvider = Provider<NotificationGateway>(
-  (ref) => FlutterNotificationGateway(ref.watch(notificationPluginProvider)),
+  (ref) => FlutterNotificationGateway(
+    ref.watch(notificationPluginProvider),
+    log: ref.watch(loggerProvider).tagged('gateway'),
+  ),
 );
 
 final registryStoreProvider = Provider<RegistryStore>(
-  (ref) => PrefsRegistryStore(ref.watch(sharedPreferencesProvider)),
+  (ref) => PrefsRegistryStore(
+    ref.watch(sharedPreferencesProvider),
+    log: ref.watch(loggerProvider).tagged('registry'),
+  ),
 );
 
 final tripStoreProvider = Provider<PrefsTripStore>(
@@ -70,7 +97,10 @@ final resolverProvider = Provider<TimezoneResolver>(
 );
 
 final engineProvider = Provider<ScheduleEngine>(
-  (ref) => ScheduleEngine(resolver: ref.watch(resolverProvider)),
+  (ref) => ScheduleEngine(
+    resolver: ref.watch(resolverProvider),
+    log: ref.watch(loggerProvider).tagged('engine'),
+  ),
 );
 
 /// The single orchestrator. Must be a singleton so its debounce/serialize state
@@ -82,6 +112,7 @@ final schedulerProvider = Provider<ReminderScheduler>((ref) {
     gateway: ref.watch(gatewayProvider),
     registryStore: ref.watch(registryStoreProvider),
     loadTrips: tripStore.load,
+    log: ref.watch(loggerProvider).tagged('scheduler'),
   );
 });
 

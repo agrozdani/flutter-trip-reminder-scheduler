@@ -6,6 +6,7 @@ import '../common_zones.dart';
 import '../providers.dart';
 import '../report_error.dart';
 import '../trip_controller.dart';
+import 'log_screen.dart';
 
 /// The debug seam, surfaced as UI. Because a simulator can't change real GPS or
 /// the device clock, these controls drive the injectable sources directly and
@@ -22,6 +23,10 @@ class _SimulateScreenState extends ConsumerState<SimulateScreen> {
   String _device = 'Europe/Paris';
 
   Future<void> _reschedule(RescheduleTrigger trigger, String message) async {
+    ref.read(loggerProvider).tagged('simulate').info('action', {
+      'trigger': trigger,
+      'what': message,
+    });
     try {
       await ref.read(tripsControllerProvider.notifier).reschedule(trigger);
     } catch (error, stack) {
@@ -41,7 +46,18 @@ class _SimulateScreenState extends ConsumerState<SimulateScreen> {
     final deviceSource = ref.read(deviceTimezoneSourceProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Simulate')),
+      appBar: AppBar(
+        title: const Text('Simulate'),
+        actions: [
+          IconButton(
+            tooltip: 'Log',
+            icon: const Icon(Icons.receipt_long_outlined),
+            onPressed: () => Navigator.of(
+              context,
+            ).push(MaterialPageRoute<void>(builder: (_) => const LogScreen())),
+          ),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
