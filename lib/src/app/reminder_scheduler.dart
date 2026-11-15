@@ -96,15 +96,28 @@ class ReminderScheduler {
         ? result.registry.reminders
         : result.plan.toSchedule;
 
-    for (final id in result.plan.toCancel) {
-      await _gateway.cancel(id);
-    }
-    for (final reminder in toSchedule) {
-      await _gateway.schedule(
-        reminder,
-        title: _title(reminder),
-        body: _body(reminder),
-      );
+    // What the OS has been told so far. If a call fails partway, this is
+    // saved instead of the new registry, so the registry still matches the
+    // OS: a cancelled reminder isn't listed as pending, and a scheduled one is
+    // cancelled if its trip goes. The run's time isn't recorded, since it
+    // didn't complete.
+    final applied = {for (final r in registry.reminders) r.id: r};
+    try {
+      for (final id in result.plan.toCancel) {
+        await _gateway.cancel(id);
+        applied.remove(id);
+      }
+      for (final reminder in toSchedule) {
+        await _gateway.schedule(
+          reminder,
+          title: _title(reminder),
+          body: _body(reminder),
+        );
+        applied[reminder.id] = reminder;
+      }
+    } catch (_) {
+      await _store.save(registry.copyWith(reminders: [...applied.values]));
+      rethrow;
     }
     await _store.save(result.registry);
     _handedOver = true;
