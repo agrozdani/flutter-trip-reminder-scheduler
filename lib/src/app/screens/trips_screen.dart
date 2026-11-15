@@ -75,16 +75,22 @@ class _TripTile extends ConsumerWidget {
         tooltip: 'Delete',
         onPressed: () async {
           final messenger = ScaffoldMessenger.of(context);
+          // Once the trip is gone this tile is too, and its `ref` with it, so
+          // the outcome is read through the container.
+          final container = ProviderScope.containerOf(context, listen: false);
           try {
             await ref
                 .read(tripsControllerProvider.notifier)
                 .removeTrip(trip.id);
           } catch (error, stack) {
-            reportRescheduleError(error, stack, 'cancelling a deleted trip');
+            reportRescheduleError(error, stack, 'deleting a trip');
+            final trips = container.read(tripsControllerProvider).value ?? [];
             messenger.showSnackBar(
-              const SnackBar(
+              SnackBar(
                 content: Text(
-                  'Trip deleted, but its reminders could not be cancelled yet',
+                  trips.any((t) => t.id == trip.id)
+                      ? 'The trip could not be deleted'
+                      : 'Trip deleted, but the schedule could not be updated',
                 ),
               ),
             );

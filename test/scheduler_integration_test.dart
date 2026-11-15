@@ -216,12 +216,12 @@ void main() {
 
   test('a failed first run leaves the hand-over owed to the next run', () {
     fakeAsync((async) {
-      final gateway = _FailsOnceGateway();
+      final gateway = _RejectingGateway();
       final store = InMemoryRegistryStore();
       scheduleInEarlierProcess(async, gateway, store);
 
       final relaunched = build(gateway, store);
-      gateway.failNext = true;
+      gateway.failAfter = 0;
       Object? error;
       relaunched.recoverOnLaunch().catchError((Object e) {
         error = e;
@@ -236,11 +236,87 @@ void main() {
       expect(gateway.scheduled, hasLength(5));
     }, initialTime: initialTime);
   });
+
+  test('a failed run still records the cancels it made', () {
+    fakeAsync((async) {
+      final gateway = _RejectingGateway();
+      final store = InMemoryRegistryStore();
+      final other = trip().copyWith(id: 't2');
+      build(
+        gateway,
+        store,
+        trips: () => [trip(), other],
+      ).request(RescheduleTrigger.userEdit);
+      async.elapse(const Duration(milliseconds: 300));
+      final before = store.current;
+      final otherIds = {
+        for (final r in before.reminders)
+          if (r.tripId == 't2') r.id,
+      };
+
+      // A new process, with the OS rejecting every schedule, as Android does
+      // while the exact-alarm permission is denied. Deleting t2 cancels its
+      // reminders, then the hand-over of t1's is rejected.
+      gateway.rejectAll = true;
+      build(
+        gateway,
+        store,
+        trips: () => [trip()],
+      ).request(RescheduleTrigger.userEdit).catchError((Object _) {});
+      async.elapse(const Duration(milliseconds: 300));
+
+      expect(gateway.cancelled.toSet(), otherIds);
+      expect(
+        store.current.ids.toSet().intersection(otherIds),
+        isEmpty,
+        reason: 'the registry no longer lists what was cancelled',
+      );
+      expect(
+        store.current.lastScheduleAtUtc,
+        before.lastScheduleAtUtc,
+        reason: 'a failed run does not count as a schedule',
+      );
+    }, initialTime: initialTime);
+  });
+
+  test(
+    'a failed run still records what it scheduled, so a delete cancels it',
+    () {
+      fakeAsync((async) {
+        // Two of the trip's five reminders reach the OS, then one is rejected.
+        final gateway = _RejectingGateway()..failAfter = 2;
+        final store = InMemoryRegistryStore();
+        build(
+          gateway,
+          store,
+        ).request(RescheduleTrigger.userEdit).catchError((Object _) {});
+        async.elapse(const Duration(milliseconds: 300));
+        final armed = gateway.scheduled.map((r) => r.id).toSet();
+        expect(armed, hasLength(2));
+
+        // The trip is deleted before any run has succeeded.
+        build(
+          gateway,
+          store,
+          trips: () => const [],
+        ).request(RescheduleTrigger.userEdit);
+        async.elapse(const Duration(milliseconds: 300));
+        expect(
+          gateway.cancelled.toSet(),
+          armed,
+          reason: 'nothing of a deleted trip is left pending',
+        );
+      }, initialTime: initialTime);
+    },
+  );
 }
 
-/// Rejects one schedule call when [failNext] is set, then behaves normally.
-class _FailsOnceGateway extends FakeNotificationGateway {
-  bool failNext = false;
+/// Rejects schedule calls, as the OS does while the exact-alarm permission is
+/// denied: every one while [rejectAll] is set, or once, after [failAfter] more
+/// have gone through.
+class _RejectingGateway extends FakeNotificationGateway {
+  bool rejectAll = false;
+  int? failAfter;
 
   @override
   Future<void> schedule(
@@ -248,10 +324,11 @@ class _FailsOnceGateway extends FakeNotificationGateway {
     required String title,
     required String body,
   }) async {
-    if (failNext) {
-      failNext = false;
+    if (rejectAll || failAfter == 0) {
+      failAfter = null;
       throw StateError('the OS rejected the schedule');
     }
+    if (failAfter != null) failAfter = failAfter! - 1;
     return super.schedule(reminder, title: title, body: body);
   }
 }

@@ -106,10 +106,11 @@ void main() {
 
     // Back lands while the save is awaiting the debounced reschedule. Were the
     // form to start closing now, the save's own pop a moment later would take
-    // the home shell with it.
+    // the home shell with it. It's the system Back (Android's button or
+    // gesture): the app bar's can't be tapped while the form saves.
     await tester.tap(find.text('Save & schedule'));
     await tester.pump(const Duration(milliseconds: 100));
-    await tester.pageBack();
+    await tester.binding.handlePopRoute();
     await tester.pump();
     expect(
       find.byType(TripFormScreen),
@@ -140,7 +141,7 @@ void main() {
       try {
         await tester.tap(find.text('Save & schedule'));
         await tester.pump(const Duration(milliseconds: 100));
-        await tester.pageBack();
+        await tester.binding.handlePopRoute(); // the system Back
         // Frame by frame, so a Back that got through would finish its exit
         // transition and dispose the form well before the reschedule fails.
         await tester.pump();
@@ -159,6 +160,26 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     },
   );
+
+  testWidgets('nothing opens over the form while it saves', (tester) async {
+    final prefs = await pumpForm(tester, FakeNotificationGateway());
+
+    // A picker opened while the save awaits its debounced reschedule would
+    // take the save's pop, leaving the form open with Back held for good.
+    await tester.tap(find.text('Save & schedule'));
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.tap(find.text('Start date'), warnIfMissed: false);
+    await tester.pump();
+    expect(find.byType(DatePickerDialog), findsNothing);
+
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
+    expect(find.byType(TripFormScreen), findsNothing);
+    expect(find.text('Trip saved and reminders scheduled'), findsOneWidget);
+    expect(await PrefsTripStore(prefs).load(), hasLength(1));
+
+    await tester.pumpWidget(const SizedBox());
+  });
 
   testWidgets('a trip added over unreadable stored trips is not saved', (
     tester,

@@ -40,13 +40,17 @@ class _TripFormScreenState extends ConsumerState<TripFormScreen> {
     _end = _start.add(const Duration(days: 5));
   }
 
-  // Back is held while a save is in flight. The save pops this route itself
-  // when it finishes; a Back that started closing the form first would turn
-  // that into a pop of the home shell underneath, and would dispose the form
-  // before it could say how the save went.
+  // While a save is in flight, Back is held and the form takes no taps. The
+  // save pops this route itself when it finishes. A Back that started closing
+  // the form first would turn that into a pop of the home shell underneath,
+  // and would dispose the form before it could say how the save went. A
+  // picker opened over the form would take that pop instead, leaving the form
+  // open with Back held for good.
   @override
-  Widget build(BuildContext context) =>
-      PopScope(canPop: !_saving, child: _buildForm(context));
+  Widget build(BuildContext context) => PopScope(
+    canPop: !_saving,
+    child: IgnorePointer(ignoring: _saving, child: _buildForm(context)),
+  );
 
   Widget _buildForm(BuildContext context) {
     final countries = ref.read(countryZoneMapProvider).countries;
