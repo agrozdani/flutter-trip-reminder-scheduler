@@ -154,11 +154,17 @@ class _ZonePicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Takes the card's width and shortens a name that doesn't fit, rather
+    // than sizing to the longest name and overflowing a narrow screen.
     return DropdownButtonFormField<String>(
       initialValue: value,
+      isExpanded: true,
       items: [
         for (final z in kCommonZones)
-          DropdownMenuItem(value: z, child: Text(z)),
+          DropdownMenuItem(
+            value: z,
+            child: Text(z, maxLines: 1, overflow: TextOverflow.ellipsis),
+          ),
       ],
       onChanged: (v) => onChanged(v ?? value),
     );

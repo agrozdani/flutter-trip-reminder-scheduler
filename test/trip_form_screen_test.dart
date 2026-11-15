@@ -18,11 +18,13 @@ import 'support/fakes.dart';
 void main() {
   setUpAll(tzdata.initializeTimeZones);
 
-  // The app over fakes, opened on the trip form with Save scrolled into view.
+  // The app over fakes, opened on the trip form with Save scrolled into view,
+  // unless [scrollToSave] is false.
   Future<SharedPreferences> pumpForm(
     WidgetTester tester,
     NotificationGateway gateway, {
     Map<String, Object> stored = const {},
+    bool scrollToSave = true,
   }) async {
     SharedPreferences.setMockInitialValues(stored);
     final prefs = await SharedPreferences.getInstance();
@@ -43,8 +45,10 @@ void main() {
 
     await tester.tap(find.text('Add trip'));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Save & schedule'));
-    await tester.pumpAndSettle();
+    if (scrollToSave) {
+      await tester.ensureVisible(find.text('Save & schedule'));
+      await tester.pumpAndSettle();
+    }
     return prefs;
   }
 
@@ -177,6 +181,23 @@ void main() {
     expect(find.byType(TripFormScreen), findsNothing);
     expect(find.text('Trip saved and reminders scheduled'), findsOneWidget);
     expect(await PrefsTripStore(prefs).load(), hasLength(1));
+
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('the zone pickers fit a narrow screen with large text', (
+    tester,
+  ) async {
+    // 320 dp wide, as on an iPhone SE (1st generation), with text at 200%.
+    tester.view.physicalSize = const Size(960, 2400);
+    tester.view.devicePixelRatio = 3;
+    tester.platformDispatcher.textScaleFactorTestValue = 2;
+    addTearDown(tester.view.reset);
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+
+    // Both pickers sit at the top of the form, so they're laid out on opening.
+    await pumpForm(tester, FakeNotificationGateway(), scrollToSave: false);
+    expect(tester.takeException(), isNull);
 
     await tester.pumpWidget(const SizedBox());
   });
