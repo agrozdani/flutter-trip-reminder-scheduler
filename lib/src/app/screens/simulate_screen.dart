@@ -50,7 +50,8 @@ class _SimulateScreenState extends ConsumerState<SimulateScreen> {
             description:
                 'Sets a high-confidence live-location signal. Only today\'s '
                 'reminder switches to this zone; other days keep their home or '
-                'destination zone.',
+                'destination zone. If the reminder time has already passed '
+                'there today, today\'s reminder is dropped instead.',
             current: locationSource.zone == null
                 ? 'No live signal'
                 : 'Live zone: ${locationSource.zone}',
@@ -86,6 +87,7 @@ class _SimulateScreenState extends ConsumerState<SimulateScreen> {
             description:
                 'Overrides the zone the resolver\'s device tier reports and '
                 're-runs the scheduler — as if the phone switched zones. The '
+                'run is skipped if another reschedule ran in the last 5 s. The '
                 'schedule deliberately stays put: home and destination days '
                 'keep their trip zones, and only a high-confidence '
                 'live-location signal can override today. The device tier is '

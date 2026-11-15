@@ -406,7 +406,8 @@ no separate `pod install` step.
    mutated for the UI) — until the next reconcile prunes it.
 3. **Exercise the hard paths** (Simulate tab):
    - *Simulate "I'm in zone X today"* sets a high-confidence live signal; watch only
-     today's reminder switch zones on the Upcoming screen.
+     today's reminder switch zones on the Upcoming screen. If the reminder time has
+     already passed in that zone today, today's reminder is dropped instead.
    - *Simulate a device timezone change* overrides the zone the resolver's device tier
      reports and re-runs the scheduler with the `timezoneChanged` trigger (a
      low-priority trigger, so it is skipped if another reschedule ran in the last 5 s).
