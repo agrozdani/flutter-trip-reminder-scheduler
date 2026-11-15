@@ -2,7 +2,7 @@
 
 ![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter&logoColor=white)
 ![Platforms](https://img.shields.io/badge/platforms-Android%20%7C%20iOS-555)
-![Tests](https://img.shields.io/badge/tests-86%20passing-3DA639)
+![Tests](https://img.shields.io/badge/tests-97%20passing-3DA639)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
 A reference implementation of **timezone-aware local notification scheduling** for
@@ -56,6 +56,7 @@ happen around it to stay correct over time, is what this project is about.
 | One debounced, serialized, de-duplicated entry point | Many triggers; uncoordinated they race and duplicate work | [`reschedule_coordinator.dart`](lib/src/core/reschedule_coordinator.dart) |
 | Launch-time recovery | The OS can lose pending notifications while the registry survives; the app can sit idle across a DST change | [`launch_recovery.dart`](lib/src/core/launch_recovery.dart) |
 | A test seam by design | Every timezone / travel / DST scenario is reproducible with no GPS, network, or device clock | [`ports/`](lib/src/core/ports), [`test/`](test) |
+| Structured logging, injected like a port | A reminder that misfires was decided launches earlier; each run has to say what it decided and why | [`logging.dart`](lib/src/core/logging.dart) |
 
 ## The hard problem: reminders that travel with you
 
@@ -379,6 +380,58 @@ untouched. These tests are the actual proof of correctness — see
 | **Apps sit idle for days, across DST.** | Launch recovery distinguishes cold start (≥ 6 h), periodic replenish (≥ 20 days), and a DST shift (stored zone's offset differs now). |
 | **Background execution is limited.** | The design does no background work — it reschedules at launch and on foreground triggers, and relies on the OS to fire already-scheduled instants. |
 
+## Logging and diagnostics
+
+A reminder that fires twice, or never, was usually decided a few launches earlier. So
+each decision that matters writes a structured entry: a stable event name plus
+key/value fields, not a sentence
+([`logging.dart`](lib/src/core/logging.dart)). Captured from a release build on an
+Android emulator, a relaunch after adding a trip. Nothing looked wrong (`reason=none`,
+all 8 pending), yet the process's first run still handed all 8 back to the OS:
+
+```text
+2026-11-15T07:16:02.294698Z I app start build=release platform=android
+2026-11-15T07:16:02.616529Z I bootstrap permissions platform=android notifications=true exactAlarms=true canScheduleExact=true
+2026-11-15T07:16:02.629741Z I scheduler launch reason=none registered=8 pending=8 lastScheduleAt=2026-11-15T07:15:46.955328Z lastZone=America/New_York
+2026-11-15T07:16:02.962194Z I scheduler run.done run=1 trigger=appResume handOver=true trips=1 toCancel=0 toSchedule=8 cancelled=0 scheduled=8 unchanged=8 registered=8 took=31ms
+```
+
+- **One facade, injected like the ports.** Components take a `Logger` and default to
+  `Logger.silent`, so the core stays pure Dart and a test asserts on what was logged
+  by passing a `LogBuffer`. `tagged('engine')` names the component; every tag shares
+  one sequence number, so a gap means entries were lost.
+- **Two sinks.** `LogBuffer` keeps the latest 1000 entries at every level for the
+  in-app log. [`ConsoleLogSink`](lib/src/platform/console_log_sink.dart) prints
+  through `debugPrint`: debug and up in debug builds, info and up otherwise. A crash
+  reporter, a file, or a backend is one more `LogSink`.
+- **Logging never throws.** A value whose `toString` throws is shown as a
+  placeholder, and a sink that throws is skipped while the others still get the
+  entry.
+- **Errors nothing else caught.** `installErrorLogging`
+  ([`report_error.dart`](lib/src/app/report_error.dart)) sends `FlutterError.onError`
+  and `PlatformDispatcher.onError` to the log, then on to the handlers already there.
+
+To read it: the Simulate tab's log icon, or `adb logcat -s flutter` on Android
+(release builds too).
+
+| Tag · event | Level | When |
+|---|---|---|
+| `scheduler launch` | info | Every launch: the recovery reason found, and how many reminders the registry and the OS each hold |
+| `scheduler run.done` · `run.failed` | info · error | Every reschedule: its trigger, whether it handed everything over, the cancels and schedules planned and made, how long it took. A failure adds the stage it stopped in: `load`, `reconcile`, `apply`, or `save` |
+| `coordinator skipped` | info | A low-priority trigger dropped inside the dedup window |
+| `engine zone.home.fallback` · `zone.destination.fallback` | warning | A trip's home zone or destination didn't resolve to what it asked for |
+| `engine cap` | warning | More future reminders than the cap of 64; the furthest are dropped |
+| `engine spacing.spill` | warning | Same-minute spacing pushed a reminder into the next minute |
+| `gateway schedule.clamped` | warning | A reminder came due mid-run and was scheduled 2 s out; one that had already fired fires again |
+| `registry load.unreadable` | error | The stored registry couldn't be decoded and was replaced by an empty one |
+| `bootstrap permissions` · `exactAlarms.denied` | info · warning | What each permission request returned; with exact alarms denied, Android rejects every schedule |
+| `trips add` · `remove` · `load.failed` · `save.failed` | info · error | Trip changes, and stored trips that couldn't be read or written |
+| `error flutter` · `uncaught` | error | Errors Flutter reported, and errors nothing caught |
+
+At debug level: each trip's three candidate zones (`engine zones`), a reminder moved
+over a spring-forward gap (`engine dst.gap`), every trigger request, the OS's pending
+count, and lifecycle changes. The log lives in memory only and goes with the process.
+
 ## Requirements & setup
 
 Toolchain: **Flutter 3.44 or newer** (Dart 3.12+); built and tested with Flutter 3.47 /
@@ -416,6 +469,10 @@ no separate `pod install` step.
      device tier is the resolver's fallback for when a trip's own zones can't resolve.
    - *Force a DST-transition reschedule* re-runs the scheduler with that trigger.
 
+4. **Read what it decided** (Simulate tab → log icon): every launch, reschedule,
+   fallback, and error this process logged, newest first. Filter by level, or copy
+   the entries shown, with stack traces, into a bug report.
+
 Because the location and device-timezone sources are injectable, none of this needs a
 real GPS fix or a changed device clock.
 
@@ -433,6 +490,7 @@ lib/
       schedule_engine.dart          Per-day zones, offsets, cap, reconciliation diff
       reschedule_coordinator.dart   Debounce / serialize / de-duplicate triggers
       launch_recovery.dart          Cold-start / OS-cleared / periodic / DST decision
+      logging.dart                  Structured log records, Logger, in-app buffer
     platform/                       Adapters: plugins behind the ports
     app/                            Riverpod UI + ReminderScheduler orchestrator
 test/                               Deterministic unit tests (no clock/GPS/OS)
@@ -464,7 +522,7 @@ Ordered from the most approachable to the most involved.
 flutter test
 ```
 
-The 86 tests need no device, radio, or network — fakes are injected through the ports,
+The 97 tests need no device, radio, or network — fakes are injected through the ports,
 platform channels are mocked, and scheduling time is controlled with `package:clock` /
 `fakeAsync`.
 
@@ -498,7 +556,7 @@ platform channels are mocked, and scheduling time is controlled with `package:cl
 - [`notification_gateway_test.dart`](test/notification_gateway_test.dart) — the gateway
   hands the plugin a UTC wall time, so the platform can't re-resolve a fall-back
   reminder to the other occurrence; a reminder that comes due mid-run is scheduled two
-  seconds out instead of aborting the run.
+  seconds out instead of aborting the run, and logs a warning saying so.
 - [`trip_form_screen_test.dart`](test/trip_form_screen_test.dart) — a double tap on
   *Save* adds the trip once and returns to the home shell; a failed reschedule still
   closes the form, and says the reminders weren't scheduled; *Back* is held while a
@@ -513,6 +571,19 @@ platform channels are mocked, and scheduling time is controlled with `package:cl
 - [`trips_screen_test.dart`](test/trips_screen_test.dart) — a failed delete says
   whether the trip went: kept when it couldn't be saved, deleted when only the
   reschedule failed.
+- [`logging_test.dart`](test/logging_test.dart) — an entry is one line of stable
+  `key=value` pairs, which later changes to its fields can't rewrite; logging never
+  throws, whatever a value or sink does; the buffer keeps the newest entries and
+  counts the rest; the console prints from its level up, with the stack trace.
+- [`log_events_test.dart`](test/log_events_test.dart) — a reschedule logs what it did
+  and a de-duplicated repeat says why; a run that fails partway logs the stage it
+  stopped in and what it had done; launch logs its recovery reason against what the
+  OS reports; the engine warns when a zone falls back and when the cap drops
+  reminders; an unreadable registry is logged as an error; reported and uncaught
+  errors reach the log, and the handlers already installed still run.
+- [`log_screen_test.dart`](test/log_screen_test.dart) — the log screen shows entries
+  as they're written, filters by level, copies what it shows, clears, and fits a
+  320 dp screen with text at 200%.
 - [`simulate_screen_test.dart`](test/simulate_screen_test.dart) — the Simulate tab's
   zone pickers fit a 320 dp screen with text at 200%.
 - [`home_shell_test.dart`](test/home_shell_test.dart) — a failed launch-time or
@@ -548,6 +619,11 @@ building on it:
 - **Persist however you like.** The bundled `RegistryStore` adapter is plain
   `shared_preferences` JSON; point it at a database or an encrypted store by writing
   one adapter.
+- **Decide what your logs may hold.** Entries carry trip ids, zones, and country
+  names, and release builds print info and up to the platform log. With a real
+  location source the live zone is location data: redact it, or raise the release
+  console's level. To ship logs off the device, or keep them across launches, write
+  a `LogSink` for your crash reporter or a file.
 
 ## What is deliberately NOT here
 
